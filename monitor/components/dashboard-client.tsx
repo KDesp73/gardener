@@ -146,9 +146,11 @@ function DevicePanel({
 export function DashboardClient({
   zones: initialZones,
   devices: initialDevices,
+  readOnly,
 }: {
   zones: ZoneRow[];
   devices: DeviceRow[];
+  readOnly?: boolean;
 }) {
   const [readings, setReadings] = useState<Record<string, TimedValue>>({});
   const [health, setHealth] = useState<Record<string, DeviceHealth>>({});
@@ -226,10 +228,12 @@ export function DashboardClient({
             {zones.length > 0 && ` · ${zones.length} total`}
           </p>
         </div>
-        <ZoneFormDialog
-          devices={devices.map((d) => ({ id: d.id, name: d.name || d.id }))}
-          nextZoneId={nextZoneId}
-        />
+        {!readOnly && (
+          <ZoneFormDialog
+            devices={devices.map((d) => ({ id: d.id, name: d.name || d.id }))}
+            nextZoneId={nextZoneId}
+          />
+        )}
       </div>
 
       {zones.length === 0 && (
@@ -258,6 +262,7 @@ export function DashboardClient({
             readings={readings}
             allZones={zones}
             allDevices={devices}
+            readOnly={readOnly}
           />
         ))}
       </div>

@@ -93,6 +93,7 @@ export function ZoneCard({
   readings,
   allZones,
   allDevices,
+  readOnly,
 }: {
   deviceId: string;
   zoneId: number;
@@ -109,6 +110,7 @@ export function ZoneCard({
   readings: ReadingMap;
   allZones?: { id: number; device_id: string; zone_id: number; name: string }[];
   allDevices?: { id: string; name: string }[];
+  readOnly?: boolean;
 }) {
   const [showConfig, setShowConfig] = useState(false);
   const [showChart, setShowChart] = useState(false);
@@ -154,7 +156,7 @@ export function ZoneCard({
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {allZones && allDevices && (
+          {!readOnly && allZones && allDevices && (
             <ZoneFormDialog
               devices={allDevices}
               zone={{
@@ -173,21 +175,25 @@ export function ZoneCard({
               trigger={<Button variant="ghost" size="sm">Edit</Button>}
             />
           )}
-          <Switch
-            size="sm"
-            defaultChecked={enabled}
-            onCheckedChange={(checked) => toggleZone(deviceId, zoneId, checked)}
-          />
-          <form action={deleteAction}>
-            <Button
-              variant="ghost"
+          {!readOnly && (
+            <Switch
               size="sm"
-              disabled={deletePending}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              {deletePending ? "..." : "✕"}
-            </Button>
-          </form>
+              defaultChecked={enabled}
+              onCheckedChange={(checked) => toggleZone(deviceId, zoneId, checked)}
+            />
+          )}
+          {!readOnly && (
+            <form action={deleteAction}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={deletePending}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                {deletePending ? "..." : "✕"}
+              </Button>
+            </form>
+          )}
         </div>
       </CardHeader>
 
@@ -236,15 +242,16 @@ export function ZoneCard({
           </div>
         </div>
 
-        {/* Water now */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => waterZone(deviceId, zoneId, maxRunSec)}
-        >
-          Water now ({maxRunSec}s)
-        </Button>
+        {!readOnly && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => waterZone(deviceId, zoneId, maxRunSec)}
+          >
+            Water now ({maxRunSec}s)
+          </Button>
+        )}
 
         {/* Chart toggle */}
         {showChart && (

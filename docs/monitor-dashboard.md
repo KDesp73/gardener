@@ -4,10 +4,39 @@ Next.js 16 app in `monitor/` with shadcn UI, real-time MQTT via WebSocket, and T
 
 ## Pages
 
-| Route | Description |
-|---|---|
-| `/dashboard` | Main dashboard (redirect from `/`) |
-| `/api/mqtt-webhook` | HTTP endpoint for posting readings (alternative to MQTT) |
+| Route | Auth | Description |
+|---|---|---|
+| `/` | Public | Read-only plants view with real-time metrics |
+| `/dashboard` | Required | Full admin dashboard with zone management |
+| `/login` | Public | Password login form |
+| `/api/mqtt-webhook` | — | HTTP endpoint for posting readings |
+| `/api/login` | — | Login API (validates password, sets session cookie) |
+| `/api/logout` | — | Clears session cookie |
+
+## Authentication
+
+Dashboard routes are protected via `proxy.ts` (root-level middleware). On each request to `/dashboard/*`, the proxy checks for a `gardener-auth` cookie containing a SHA-256 hash of the dashboard password. If absent or invalid, the user is redirected to `/login?redirect=/dashboard`.
+
+Set `DASHBOARD_PASSWORD` in `.env.local`. When unset, dashboard access is unrestricted.
+
+### Login Flow
+
+1. User visits `/dashboard` → proxy redirects to `/login?redirect=/dashboard`
+2. User enters password → POST to `/api/login`
+3. API validates against `DASHBOARD_PASSWORD` env var, sets `gardener-auth` cookie (30-day expiry)
+4. User is redirected back to `/dashboard`
+5. `/api/logout` clears the cookie
+
+## Navigation
+
+A shared `Nav` component renders on all pages, showing links to Plants (`/`) and Dashboard (`/dashboard`). The nav highlights the active page and includes a Login/Back link.
+
+## Public Page (`/`)
+
+Serves a read-only view of all plants and their current metrics. Uses the same `DashboardClient` and `ZoneCard` components as `/dashboard` but with `readOnly` prop, which hides:
+- Add Plant / Edit / Delete controls
+- Enable/disable switches
+- "Water now" buttons
 
 ## Real-Time Data
 

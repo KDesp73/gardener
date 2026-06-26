@@ -1,5 +1,21 @@
-import { redirect } from "next/navigation";
+import { getZones, getDevices } from "@/app/actions";
+import { DashboardClient } from "@/components/dashboard-client";
 
-export default function Home() {
-  redirect("/dashboard");
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const devices = await getDevices();
+  const deviceId = devices.length > 0 ? (devices[0] as unknown as { id: string }).id : "";
+  const zones = deviceId ? await getZones(deviceId) : [];
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="mb-8 text-3xl font-bold tracking-tight">My Plants</h1>
+      <DashboardClient
+        zones={zones as unknown as any[]}
+        devices={devices as unknown as any[]}
+        readOnly
+      />
+    </div>
+  );
 }

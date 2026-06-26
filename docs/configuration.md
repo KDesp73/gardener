@@ -29,6 +29,7 @@ Loaded at build time by `scripts/extra_script.py` → generates `include/env_con
 | `NEXT_PUBLIC_MQTT_WS_URL` | yes | — | WebSocket URL for browser (`wss://host:8884/mqtt`) |
 | `NEXT_PUBLIC_MQTT_USERNAME` | no | empty | WebSocket MQTT username |
 | `NEXT_PUBLIC_MQTT_PASSWORD` | no | empty | WebSocket MQTT password |
+| `DASHBOARD_PASSWORD` | no | empty | Password for `/dashboard` (empty = no auth) |
 
 ## Listener — `listener/.env`
 
