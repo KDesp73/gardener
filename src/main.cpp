@@ -1,10 +1,13 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ArduinoJson.h>
 #include "logger.h"
 #include "env_config.h"
 #include "wifi_utils.h"
 #include "sensor.h"
+#include "mqtt.h"
 
 static SensorManager g_sensors;
 static Dht22Config   g_dht_cfg;
@@ -30,6 +33,52 @@ static void register_sensors(void)
     }
 }
 
+static void publish_sensors(void)
+{
+    JsonDocument doc;
+    char         payload[128];
+    char         topic[MQTT_TOPIC_MAX];
+
+    float temp = NAN, hum = NAN;
+    for (int i = 0; i < sensor_manager_count(&g_sensors); i++) {
+        SensorReading r = sensor_manager_get_by_index(&g_sensors, i);
+        const char*   n = g_sensors.sensors[i].name;
+
+        if (strcmp(n, "dht22_temp") == 0 && r.valid) temp = r.value;
+        if (strcmp(n, "dht22_hum")  == 0 && r.valid) hum  = r.value;
+
+        if (strncmp(n, "soil_", 5) == 0 && r.valid) {
+            int zone = atoi(n + 5);
+            doc.clear();
+            doc["moisture"] = (int)r.value;
+            serializeJson(doc, payload, sizeof(payload));
+            mqtt_topic_soil(topic, sizeof(topic), zone);
+            mqtt_publish(topic, payload, false);
+        }
+    }
+
+    if (!isnan(temp) || !isnan(hum)) {
+        doc.clear();
+        if (!isnan(temp)) doc["temp"] = temp;
+        if (!isnan(hum))  doc["hum"]  = hum;
+        serializeJson(doc, payload, sizeof(payload));
+        mqtt_topic_env(topic, sizeof(topic));
+        mqtt_publish(topic, payload, false);
+    }
+}
+
+static void publish_status(void)
+{
+    char topic[MQTT_TOPIC_MAX];
+    char payload[64];
+
+    mqtt_topic_status(topic, sizeof(topic));
+    snprintf(payload, sizeof(payload),
+             "{\"rssi\":%ld,\"uptime\":%lu}",
+             WiFi.RSSI(), millis() / 1000);
+    mqtt_publish(topic, payload, false);
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -42,21 +91,37 @@ void setup()
     WifiConfig wifi;
     wifi_load_env(&wifi);
     wifi_connect(&wifi);
+
+    MqttConfig mqtt;
+    mqtt_load_env(&mqtt);
+    mqtt_init(&mqtt);
+    mqtt_connect();
 }
 
 void loop()
 {
-    sensor_manager_read_all(&g_sensors);
+    mqtt_loop();
 
-    for (int i = 0; i < sensor_manager_count(&g_sensors); i++) {
-        SensorReading r = sensor_manager_get_by_index(&g_sensors, i);
-        const char* name = g_sensors.sensors[i].name;
-        if (r.valid) {
-            LOG_INFO(&g_logger, name, "%.2f", r.value);
-        } else {
-            LOG_WARN(&g_logger, name, "invalid reading");
+    static unsigned long last_read = 0;
+    unsigned long now = millis();
+    if (now - last_read >= 5000) {
+        last_read = now;
+
+        sensor_manager_read_all(&g_sensors);
+
+        for (int i = 0; i < sensor_manager_count(&g_sensors); i++) {
+            SensorReading r = sensor_manager_get_by_index(&g_sensors, i);
+            const char* name = g_sensors.sensors[i].name;
+            if (r.valid) {
+                LOG_INFO(&g_logger, name, "%.2f", r.value);
+            } else {
+                LOG_WARN(&g_logger, name, "invalid reading");
+            }
+        }
+
+        if (mqtt_connected()) {
+            publish_status();
+            publish_sensors();
         }
     }
-
-    delay(5000);
 }

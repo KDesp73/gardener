@@ -16,7 +16,7 @@ Extensible ESP32-based automated watering system. A single ESP32 can serve multi
          └──────────┬───────────────────┘
                     │ MQTT
               ┌─────▼──────┐
-              │   Broker    │── HomeAssistant / Node-RED / etc.
+              │   Broker   │── HomeAssistant / Node-RED / etc.
               └────────────┘
 ```
 

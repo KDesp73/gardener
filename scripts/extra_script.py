@@ -26,6 +26,7 @@ def generate_env_header():
 
     keys = [
         "WIFI_SSID", "WIFI_PASSWORD", "WIFI_MAC",
+        "MQTT_HOST", "MQTT_PORT", "MQTT_USER", "MQTT_PASS", "MQTT_DEVICE_ID",
         "DHT22_PIN",
         "SOIL_0_PIN", "SOIL_1_PIN", "SOIL_2_PIN",
     ]
