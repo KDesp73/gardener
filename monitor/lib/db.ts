@@ -79,4 +79,13 @@ async function initSchema() {
   } catch {
     // column already exists
   }
+
+  // migration: add image column to zones if missing
+  try {
+    await db!.execute(
+      "ALTER TABLE zones ADD COLUMN image TEXT DEFAULT NULL",
+    );
+  } catch {
+    // column already exists
+  }
 }

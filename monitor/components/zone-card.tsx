@@ -81,6 +81,7 @@ export function ZoneCard({
   deviceId,
   zoneId,
   name,
+  image,
   sensorType,
   soilPin,
   relayPin,
@@ -98,6 +99,7 @@ export function ZoneCard({
   deviceId: string;
   zoneId: number;
   name: string;
+  image?: string | null;
   sensorType: string;
   soilPin: number;
   relayPin: number;
@@ -171,6 +173,7 @@ export function ZoneCard({
                 maxRunSec,
                 scheduleOn,
                 scheduleOff,
+                image,
               }}
               trigger={<Button variant="ghost" size="sm" className="h-9 px-3">Edit</Button>}
             />
@@ -199,6 +202,16 @@ export function ZoneCard({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {image && (
+          <div className="overflow-hidden rounded-lg border border-border">
+            <img
+              src={image}
+              alt={name}
+              className="h-40 w-full object-cover"
+            />
+          </div>
+        )}
+
         {/* Moisture */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-sm">

@@ -1,4 +1,4 @@
-# Gardener — Automated Watering System & Monitoring Platform
+# Gardener - Automated Watering System & Monitoring Platform
 
 Extensible ESP32-based automated watering system. A single ESP32 can serve multiple plants (zones), and multiple ESP32s can coexist in the same MQTT-based system. Written in C-style C++ on the Arduino framework.
 

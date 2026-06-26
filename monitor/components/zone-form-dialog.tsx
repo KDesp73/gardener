@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createZone } from "@/app/actions";
+import { ImagePicker } from "@/components/image-picker";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -42,6 +43,7 @@ type ZoneData = {
   maxRunSec: number;
   scheduleOn: number;
   scheduleOff: number;
+  image?: string | null;
 };
 
 export function ZoneFormDialog({
@@ -56,6 +58,7 @@ export function ZoneFormDialog({
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [image, setImage] = useState<string | null>(zone?.image ?? null);
 
   const [, action] = useActionState(
     async (_prev: unknown, formData: FormData) => {
@@ -71,6 +74,7 @@ export function ZoneFormDialog({
         maxRunSec: parseInt(formData.get("maxRunSec") as string) || 60,
         scheduleOn: parseInt(formData.get("scheduleOn") as string) || 420,
         scheduleOff: parseInt(formData.get("scheduleOff") as string) || 480,
+        image: image ?? undefined,
       });
       setOpen(false);
     },
@@ -217,6 +221,8 @@ export function ZoneFormDialog({
               defaultValue={zone?.scheduleOff ?? 480}
             />
           </div>
+
+          <ImagePicker value={image} onChange={setImage} />
 
           <SubmitButton />
         </form>
