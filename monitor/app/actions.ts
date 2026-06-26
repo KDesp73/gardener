@@ -21,6 +21,19 @@ const zoneSchema = z.object({
 
 export type ZoneFormData = z.infer<typeof zoneSchema>;
 
+export async function discoverDevice(deviceId: string, name?: string) {
+  const db = getDb();
+  await db.execute({
+    sql: `INSERT INTO devices (id, name, last_seen)
+          VALUES (?, ?, datetime('now'))
+          ON CONFLICT (id) DO UPDATE SET
+          name = COALESCE(NULLIF(?, ''), devices.name),
+          last_seen = datetime('now')`,
+    args: [deviceId, name || deviceId, name || deviceId],
+  });
+  revalidatePath("/dashboard");
+}
+
 export async function getDevices() {
   const db = getDb();
   const result = await db.execute("SELECT * FROM devices ORDER BY name");
@@ -129,6 +142,22 @@ export async function deleteZone(deviceId: string, zoneId: number) {
   }
 
   revalidatePath("/dashboard");
+}
+
+export async function getReadings(
+  deviceId: string,
+  zoneId: number | null,
+  sensorType: string,
+  limit = 60,
+) {
+  const db = getDb();
+  const result = await db.execute({
+    sql: `SELECT value, created_at FROM readings
+          WHERE device_id = ? AND COALESCE(zone_id, -1) = COALESCE(?, -1) AND sensor_type = ?
+          ORDER BY created_at DESC LIMIT ?`,
+    args: [deviceId, zoneId, sensorType, limit],
+  });
+  return result.rows.reverse();
 }
 
 export async function toggleZone(deviceId: string, zoneId: number, enabled: boolean) {

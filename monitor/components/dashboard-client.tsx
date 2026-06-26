@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   connectMqtt,
   disconnectMqtt,
   onSensorMessage,
+  onAnnounce,
+  onStatus,
   type SensorMessage,
+  type AnnounceMessage,
+  type StatusMessage,
 } from "@/lib/mqtt-browser";
 import { ZoneCard } from "@/components/zone-card";
 import { ZoneFormDialog } from "@/components/zone-form-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { discoverDevice } from "@/app/actions";
+import { Badge } from "@/components/ui/badge";
+
+const STALE_AFTER_MS = 30_000;
 
 type ZoneRow = {
   id: number;
@@ -32,36 +40,45 @@ type DeviceRow = {
   name: string;
 };
 
+type TimedValue = { value: number; ts: number };
+type DeviceHealth = {
+  rssi?: number;
+  uptime?: number;
+  freeHeap?: number;
+  sensorsOk?: number;
+  sensorsTotal?: number;
+  lastSeen: number;
+};
+
 function DevicePanel({
   deviceId,
-  readings,
+  health,
 }: {
   deviceId: string;
-  readings: Record<string, number>;
+  health: DeviceHealth | null;
 }) {
-  const rssi = readings[`${deviceId}:env:rssi`];
-  const uptime = readings[`${deviceId}:env:uptime`];
-  const temp = readings[`${deviceId}:env:temp`];
+  if (!health) return null;
+
+  const { rssi, uptime, freeHeap, sensorsOk, sensorsTotal, lastSeen } = health;
+  const stale = Date.now() - lastSeen > STALE_AFTER_MS;
 
   const rssiBars =
     rssi !== undefined
-      ? rssi >= -50
-        ? 4
-        : rssi >= -65
-          ? 3
-          : rssi >= -80
-            ? 2
-            : 1
+      ? rssi >= -50 ? 4 : rssi >= -65 ? 3 : rssi >= -80 ? 2 : 1
       : 0;
 
   return (
-    <Card>
+    <Card className={stale ? "opacity-60" : ""}>
       <CardHeader>
-        <CardTitle className="text-base">{deviceId}</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          {deviceId}
+          {stale && <Badge variant="outline">offline</Badge>}
+          {!stale && <Badge variant="secondary">online</Badge>}
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Signal</span>
             {rssi !== undefined ? (
               <div className="flex items-center gap-0.5">
@@ -79,27 +96,45 @@ function DevicePanel({
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">·</span>
+
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Uptime</span>
-            {uptime !== undefined ? (
-              <span className="font-mono text-xs">
-                {uptime >= 86400
+            <span className="font-mono text-xs">
+              {uptime !== undefined
+                ? uptime >= 86400
                   ? `${(uptime / 86400).toFixed(0)}d`
                   : uptime >= 3600
                     ? `${(uptime / 3600).toFixed(0)}h`
-                    : `${(uptime / 60).toFixed(0)}m`}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">—</span>
-            )}
+                    : `${(uptime / 60).toFixed(0)}m`
+                : "—"}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Temp</span>
-            {temp !== undefined ? (
-              <span className="font-mono text-xs">{temp.toFixed(1)}°C</span>
-            ) : (
-              <span className="text-xs text-muted-foreground">—</span>
+          <span className="text-muted-foreground">·</span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Heap</span>
+            <span className="font-mono text-xs">
+              {freeHeap !== undefined
+                ? `${(freeHeap / 1024).toFixed(0)} KB`
+                : "—"}
+            </span>
+          </div>
+
+          <span className="text-muted-foreground">·</span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">Sensors</span>
+            <span className="font-mono text-xs">
+              {sensorsOk !== undefined && sensorsTotal !== undefined
+                ? `${sensorsOk}/${sensorsTotal}`
+                : "—"}
+            </span>
+            {sensorsOk !== undefined && sensorsTotal !== undefined && sensorsOk < sensorsTotal && (
+              <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                {sensorsTotal - sensorsOk} failed
+              </Badge>
             )}
           </div>
         </div>
@@ -109,33 +144,68 @@ function DevicePanel({
 }
 
 export function DashboardClient({
-  zones,
-  devices,
+  zones: initialZones,
+  devices: initialDevices,
 }: {
   zones: ZoneRow[];
   devices: DeviceRow[];
 }) {
-  const [readings, setReadings] = useState<Record<string, number>>({});
+  const [readings, setReadings] = useState<Record<string, TimedValue>>({});
+  const [health, setHealth] = useState<Record<string, DeviceHealth>>({});
+  const [zones, setZones] = useState(initialZones);
+  const [devices, setDevices] = useState(initialDevices);
 
   useEffect(() => {
-    const unsub = onSensorMessage((msg: SensorMessage) => {
+    const unsubSensor = onSensorMessage((msg: SensorMessage) => {
       const key =
         msg.zoneId !== null
           ? `${msg.deviceId}:${msg.zoneId}:${msg.sensorType}`
           : `${msg.deviceId}:env:${msg.sensorType}`;
 
-      setReadings((prev) => ({ ...prev, [key]: msg.value }));
+      setReadings((prev) => ({
+        ...prev,
+        [key]: { value: msg.value, ts: Date.now() },
+      }));
+    });
+
+    const unsubAnnounce = onAnnounce((msg: AnnounceMessage) => {
+      discoverDevice(msg.deviceId, msg.deviceId);
+      setDevices((prev) => {
+        if (prev.find((d) => d.id === msg.deviceId)) return prev;
+        return [...prev, { id: msg.deviceId, name: msg.deviceId }];
+      });
+    });
+
+    const unsubStatus = onStatus((msg: StatusMessage) => {
+      setHealth((prev) => ({
+        ...prev,
+        [msg.deviceId]: {
+          rssi: msg.rssi,
+          uptime: msg.uptime,
+          freeHeap: msg.freeHeap,
+          sensorsOk: msg.sensorsOk,
+          sensorsTotal: msg.sensorsTotal,
+          lastSeen: Date.now(),
+        },
+      }));
     });
 
     connectMqtt();
 
     return () => {
-      unsub();
+      unsubSensor();
+      unsubAnnounce();
+      unsubStatus();
       disconnectMqtt();
     };
   }, []);
 
   const deviceIds = [...new Set(zones.map((z) => z.device_id))];
+
+  // Also include any device we've heard from via MQTT
+  for (const id of Object.keys(health)) {
+    if (!deviceIds.includes(id)) deviceIds.push(id);
+  }
 
   const nextZoneId =
     zones.length > 0 ? Math.max(...zones.map((z) => z.zone_id)) + 1 : 0;
@@ -144,7 +214,7 @@ export function DashboardClient({
     <div className="space-y-6">
       {/* Device panels */}
       {deviceIds.map((did) => (
-        <DevicePanel key={did} deviceId={did} readings={readings} />
+        <DevicePanel key={did} deviceId={did} health={health[did] || null} />
       ))}
 
       {/* Zones header */}
@@ -186,6 +256,8 @@ export function DashboardClient({
             scheduleOff={z.schedule_off}
             enabled={!!z.enabled}
             readings={readings}
+            allZones={zones}
+            allDevices={devices}
           />
         ))}
       </div>

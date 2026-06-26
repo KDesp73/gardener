@@ -10,8 +10,60 @@
 #include "mqtt.h"
 #include "zone.h"
 
+#define TAG "main"
+
 static SensorManager g_sensors;
 static Dht22Config   g_dht_cfg;
+
+// ── Water state ────────────────────────────────────────────────────────────
+
+static bool          g_watering[ZONES_MAX];
+static unsigned long g_water_start[ZONES_MAX];
+
+static const ZoneConfig* get_zone_by_id(uint8_t id)
+{
+    for (int i = 0; i < zone_manager_count(); i++) {
+        if (g_zone_mgr.zones[i].id == id) return &g_zone_mgr.zones[i];
+    }
+    return NULL;
+}
+
+static bool zone_needs_water(const ZoneConfig* z, float moisture)
+{
+    if (!z->enabled || z->relay_pin == 0) return false;
+    if (moisture <= 0) return false;
+    return z->sensor_type == 1
+        ? moisture >= (float)z->dry_threshold
+        : moisture <= (float)z->dry_threshold;
+}
+
+static bool zone_is_wet_enough(const ZoneConfig* z, float moisture)
+{
+    return z->sensor_type == 1
+        ? moisture <= (float)z->wet_threshold
+        : moisture >= (float)z->wet_threshold;
+}
+
+// ── Sensor helpers ─────────────────────────────────────────────────────────
+
+static float get_soil_moisture(uint8_t zone_id)
+{
+    char name[SENSOR_NAME_MAX];
+    snprintf(name, sizeof(name), "soil_%d", zone_id);
+    SensorReading r = sensor_manager_get(&g_sensors, name);
+    return r.valid ? r.value : -1.0f;
+}
+
+static int count_valid_sensors(void)
+{
+    int ok = 0;
+    for (int i = 0; i < sensor_manager_count(&g_sensors); i++) {
+        if (g_sensors.sensors[i].last.valid) ok++;
+    }
+    return ok;
+}
+
+// ── Registration ───────────────────────────────────────────────────────────
 
 static void register_sensors(void)
 {
@@ -34,16 +86,24 @@ static void register_sensors(void)
         static SoilConfig soil_cfgs[ZONES_MAX];
         soil_cfgs[z->id] = (SoilConfig){.pin = z->soil_pin};
         sensor_manager_add(&g_sensors, name, NULL, soil_moisture_read, &soil_cfgs[z->id]);
+
+        // Init relay pin as output
+        if (z->relay_pin > 0) {
+            pinMode(z->relay_pin, OUTPUT);
+            digitalWrite(z->relay_pin, LOW);
+        }
     }
 
     sensor_manager_init_all(&g_sensors);
-    LOG_INFO(&g_logger, "main", "Registered %d sensor(s)", sensor_manager_count(&g_sensors));
+    LOG_INFO(&g_logger, TAG, "Registered %d sensor(s)", sensor_manager_count(&g_sensors));
 }
+
+// ── Publishing ─────────────────────────────────────────────────────────────
 
 static void publish_sensors(void)
 {
     JsonDocument doc;
-    char         payload[128];
+    char         payload[192];
     char         topic[MQTT_TOPIC_MAX];
 
     float temp = NAN, hum = NAN;
@@ -77,30 +137,132 @@ static void publish_sensors(void)
 static void publish_status(void)
 {
     char topic[MQTT_TOPIC_MAX];
-    char payload[64];
+    char payload[128];
+
+    int total = sensor_manager_count(&g_sensors);
+    int ok    = count_valid_sensors();
 
     mqtt_topic_status(topic, sizeof(topic));
     snprintf(payload, sizeof(payload),
-             "{\"rssi\":%ld,\"uptime\":%lu}",
-             WiFi.RSSI(), millis() / 1000);
+             "{\"rssi\":%ld,\"uptime\":%lu,\"free_heap\":%u,\"sensors_ok\":%d,\"sensors_total\":%d}",
+             WiFi.RSSI(), millis() / 1000, ESP.getFreeHeap(), ok, total);
     mqtt_publish(topic, payload, false);
+}
+
+static void publish_water_state(uint8_t zone_id, bool on)
+{
+    char topic[MQTT_TOPIC_MAX];
+    char payload[48];
+    mqtt_topic_water(topic, sizeof(topic), zone_id);
+    snprintf(payload, sizeof(payload), "{\"state\":\"%s\"}", on ? "on" : "off");
+    mqtt_publish(topic, payload, true);
+}
+
+// ── Auto-watering logic ────────────────────────────────────────────────────
+
+static void manage_watering(unsigned long now_ms)
+{
+    for (int i = 0; i < zone_manager_count(); i++) {
+        const ZoneConfig* z = &g_zone_mgr.zones[i];
+        if (!z->enabled || z->relay_pin == 0) {
+            if (g_watering[z->id]) {
+                g_watering[z->id] = false;
+                if (z->relay_pin > 0) digitalWrite(z->relay_pin, LOW);
+            }
+            continue;
+        }
+
+        float moisture = get_soil_moisture(z->id);
+        if (moisture < 0) continue;
+
+        if (g_watering[z->id]) {
+            unsigned long elapsed = (now_ms - g_water_start[z->id]) / 1000;
+            if (elapsed >= z->max_run_sec || zone_is_wet_enough(z, moisture)) {
+                g_watering[z->id] = false;
+                digitalWrite(z->relay_pin, LOW);
+                publish_water_state(z->id, false);
+                LOG_INFO(&g_logger, TAG, "Zone %d watering stopped (elapsed=%lu, moisture=%.0f)",
+                         z->id, elapsed, moisture);
+            }
+        } else if (zone_needs_water(z, moisture)) {
+            g_watering[z->id] = true;
+            g_water_start[z->id] = now_ms;
+            digitalWrite(z->relay_pin, HIGH);
+            publish_water_state(z->id, true);
+            LOG_INFO(&g_logger, TAG, "Zone %d watering started (moisture=%.0f, dry=%d)",
+                     z->id, moisture, z->dry_threshold);
+        }
+    }
+}
+
+// ── MQTT callbacks ─────────────────────────────────────────────────────────
+
+static void start_manual_water(uint8_t zone_id, uint16_t duration_sec)
+{
+    const ZoneConfig* z = get_zone_by_id(zone_id);
+    if (!z || z->relay_pin == 0) return;
+
+    g_watering[zone_id] = true;
+    g_water_start[zone_id] = millis();
+    // Override max_run with requested duration
+    digitalWrite(z->relay_pin, HIGH);
+    publish_water_state(zone_id, true);
+    LOG_INFO(&g_logger, TAG, "Manual water zone %d for %ds", zone_id, duration_sec);
+}
+
+static void stop_manual_water(uint8_t zone_id)
+{
+    const ZoneConfig* z = get_zone_by_id(zone_id);
+    if (!z || z->relay_pin == 0) return;
+
+    g_watering[zone_id] = false;
+    digitalWrite(z->relay_pin, LOW);
+    publish_water_state(zone_id, false);
+    LOG_INFO(&g_logger, TAG, "Manual water zone %d stopped", zone_id);
 }
 
 static void on_mqtt_message(const char* topic, const char* payload, uint16_t len)
 {
     int zone_id;
+
+    // Zone config update
     if (sscanf(topic, "gardener/%*[^/]/zone/%d/config", &zone_id) == 1) {
         int changed = zone_manager_apply_json((uint8_t)zone_id, payload, len);
         if (changed > 0) {
             register_sensors();
         }
+        return;
+    }
+
+    // Water command
+    if (sscanf(topic, "gardener/%*[^/]/zone/%d/cmd/water", &zone_id) == 1) {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, payload, len);
+        if (err) {
+            LOG_WARN(&g_logger, TAG, "Water cmd parse error: %s", err.c_str());
+            return;
+        }
+
+        const char* state = doc["state"] | "";
+        if (strcmp(state, "on") == 0) {
+            uint16_t duration = doc["duration"] | 60;
+            start_manual_water((uint8_t)zone_id, duration);
+        } else if (strcmp(state, "off") == 0) {
+            stop_manual_water((uint8_t)zone_id);
+        }
+        return;
     }
 }
+
+// ── Setup / Loop ───────────────────────────────────────────────────────────
 
 void setup()
 {
     Serial.begin(115200);
     logger_init_global();
+
+    memset(g_watering, 0, sizeof(g_watering));
+    memset(g_water_start, 0, sizeof(g_water_start));
 
     sensor_manager_init(&g_sensors);
     zone_manager_init();
@@ -118,6 +280,9 @@ void setup()
 
     char topic[MQTT_TOPIC_MAX];
     mqtt_topic_zone_config_wc(topic, sizeof(topic));
+    mqtt_subscribe(topic);
+
+    snprintf(topic, sizeof(topic), "gardener/%s/zone/+/cmd/water", MQTT_DEVICE_ID);
     mqtt_subscribe(topic);
 }
 
@@ -141,6 +306,8 @@ void loop()
                 LOG_WARN(&g_logger, name, "invalid reading");
             }
         }
+
+        manage_watering(now);
 
         if (mqtt_connected()) {
             publish_status();

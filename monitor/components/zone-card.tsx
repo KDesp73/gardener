@@ -6,8 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { deleteZone, toggleZone, waterZone } from "@/app/actions";
+import { ReadingsChart } from "@/components/readings-chart";
+import { ZoneFormDialog } from "@/components/zone-form-dialog";
 
-type ReadingMap = Record<string, number>;
+const STALE_AFTER_MS = 30_000;
+
+type TimedValue = { value: number; ts: number };
+type ReadingMap = Record<string, TimedValue>;
 
 function formatTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -64,6 +69,14 @@ function isWet(
     : moisture >= wetThreshold;
 }
 
+function timeAgo(ts: number): string {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  return `${Math.floor(min / 60)}h ago`;
+}
+
 export function ZoneCard({
   deviceId,
   zoneId,
@@ -78,6 +91,8 @@ export function ZoneCard({
   scheduleOff,
   enabled,
   readings,
+  allZones,
+  allDevices,
 }: {
   deviceId: string;
   zoneId: number;
@@ -92,21 +107,28 @@ export function ZoneCard({
   scheduleOff: number;
   enabled: boolean;
   readings: ReadingMap;
+  allZones?: { id: number; device_id: string; zone_id: number; name: string }[];
+  allDevices?: { id: string; name: string }[];
 }) {
   const [showConfig, setShowConfig] = useState(false);
+  const [showChart, setShowChart] = useState(false);
 
   const [deleteState, deleteAction, deletePending] = useActionState(
     () => deleteZone(deviceId, zoneId),
     null,
   );
 
-  const moisture = readings[`${deviceId}:${zoneId}:moisture`];
+  const moistureVal = readings[`${deviceId}:${zoneId}:moisture`];
   const waterState = readings[`${deviceId}:${zoneId}:water`];
   const temp = readings[`${deviceId}:env:temp`];
   const hum = readings[`${deviceId}:env:hum`];
 
+  const moisture = moistureVal?.value;
+  const moistureTs = moistureVal?.ts;
+  const stale = moistureTs && Date.now() - moistureTs > STALE_AFTER_MS;
+
   let status: "dry" | "wet" | "ok" | "unknown" = "unknown";
-  if (moisture !== undefined) {
+  if (moisture !== undefined && !stale) {
     if (isDry(moisture, dryThreshold, wetThreshold, sensorType)) status = "dry";
     else if (isWet(moisture, dryThreshold, wetThreshold, sensorType)) status = "wet";
     else status = "ok";
@@ -126,13 +148,31 @@ export function ZoneCard({
           <CardTitle className="text-lg">{name}</CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-            {waterState === 1 && <Badge variant="default">Watering</Badge>}
-            <span className="text-xs text-muted-foreground">
-              Z{zoneId}
-            </span>
+            {waterState?.value === 1 && <Badge variant="default">Watering</Badge>}
+            {stale && <Badge variant="outline">old data</Badge>}
+            <span className="text-xs text-muted-foreground">Z{zoneId}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {allZones && allDevices && (
+            <ZoneFormDialog
+              devices={allDevices}
+              zone={{
+                deviceId,
+                zoneId,
+                name,
+                sensorType,
+                soilPin,
+                relayPin,
+                dryThreshold,
+                wetThreshold,
+                maxRunSec,
+                scheduleOn,
+                scheduleOff,
+              }}
+              trigger={<Button variant="ghost" size="sm">Edit</Button>}
+            />
+          )}
           <Switch
             size="sm"
             defaultChecked={enabled}
@@ -156,9 +196,13 @@ export function ZoneCard({
         <div className="space-y-1">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Moisture</span>
-            <span className="font-mono tabular-nums">
+            <span className="flex items-center gap-2 font-mono tabular-nums">
               {moisture !== undefined ? moisture : "—"}
-              <span className="text-xs text-muted-foreground"> / {wetThreshold}</span>
+              {moistureTs && (
+                <span className="text-[10px] text-muted-foreground">
+                  {timeAgo(moistureTs)}
+                </span>
+              )}
             </span>
           </div>
           {moisture !== undefined && (
@@ -175,13 +219,13 @@ export function ZoneCard({
           <div className="rounded-lg bg-muted/50 p-2">
             <div className="text-xs text-muted-foreground">Temp</div>
             <div className="font-mono tabular-nums">
-              {temp !== undefined ? `${temp.toFixed(1)}°` : "—"}
+              {temp !== undefined ? `${temp.value.toFixed(1)}°` : "—"}
             </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-2">
             <div className="text-xs text-muted-foreground">Humidity</div>
             <div className="font-mono tabular-nums">
-              {hum !== undefined ? `${hum.toFixed(0)}%` : "—"}
+              {hum !== undefined ? `${hum.value.toFixed(0)}%` : "—"}
             </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-2">
@@ -202,17 +246,37 @@ export function ZoneCard({
           Water now ({maxRunSec}s)
         </Button>
 
-        {/* Config toggle */}
-        <button
-          type="button"
-          className="text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setShowConfig(!showConfig)}
-        >
-          {showConfig ? "Hide" : "Show"} config
-        </button>
+        {/* Chart toggle */}
+        {showChart && (
+          <ReadingsChart
+            deviceId={deviceId}
+            zoneId={zoneId}
+            sensorType="moisture"
+          />
+        )}
+
+        {/* Bottom row: chart toggle + config toggle */}
+        <div className="flex gap-3 text-xs">
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setShowChart(!showChart)}
+          >
+            {showChart ? "Hide" : "Show"} history
+          </button>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setShowConfig(!showConfig)}
+          >
+            {showConfig ? "Hide" : "Show"} config
+          </button>
+        </div>
 
         {showConfig && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>Sensor type</span>
+            <span className="text-right font-mono capitalize">{sensorType}</span>
             <span>Soil pin</span>
             <span className="font-mono text-right">{soilPin}</span>
             <span>Relay pin</span>

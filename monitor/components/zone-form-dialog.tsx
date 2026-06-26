@@ -30,12 +30,30 @@ function SubmitButton() {
   );
 }
 
+type ZoneData = {
+  deviceId: string;
+  zoneId: number;
+  name: string;
+  sensorType: string;
+  soilPin: number;
+  relayPin: number;
+  dryThreshold: number;
+  wetThreshold: number;
+  maxRunSec: number;
+  scheduleOn: number;
+  scheduleOff: number;
+};
+
 export function ZoneFormDialog({
   devices,
   nextZoneId,
+  zone,
+  trigger,
 }: {
   devices: { id: string; name: string }[];
-  nextZoneId: number;
+  nextZoneId?: number;
+  zone?: ZoneData;
+  trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -61,17 +79,22 @@ export function ZoneFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={<Button>Add Plant</Button>}
-      />
+      {trigger ? (
+        <DialogTrigger render={trigger as React.ReactElement} />
+      ) : (
+        <DialogTrigger render={<Button>Add Plant</Button>} />
+      )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add or Edit Plant Zone</DialogTitle>
+          <DialogTitle>{zone ? `Edit ${zone.name}` : "Add Plant Zone"}</DialogTitle>
         </DialogHeader>
         <form action={action} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="deviceId">Device</Label>
-            <Select name="deviceId" defaultValue={devices[0]?.id}>
+            <Select
+              name="deviceId"
+              defaultValue={zone?.deviceId || devices[0]?.id}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -85,16 +108,29 @@ export function ZoneFormDialog({
             </Select>
           </div>
 
-          <input type="hidden" name="zoneId" value={nextZoneId} />
+          <input
+            type="hidden"
+            name="zoneId"
+            value={zone?.zoneId ?? nextZoneId ?? 0}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="name">Plant Name</Label>
-            <Input id="name" name="name" placeholder="e.g. Basil" required />
+            <Input
+              id="name"
+              name="name"
+              placeholder="e.g. Basil"
+              defaultValue={zone?.name}
+              required
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="sensorType">Soil Sensor Type</Label>
-            <Select name="sensorType" defaultValue="capacitive">
+            <Select
+              name="sensorType"
+              defaultValue={zone?.sensorType || "capacitive"}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -116,7 +152,7 @@ export function ZoneFormDialog({
                 id="soilPin"
                 name="soilPin"
                 type="number"
-                defaultValue={34}
+                defaultValue={zone?.soilPin ?? 34}
               />
             </div>
             <div className="space-y-2">
@@ -125,7 +161,7 @@ export function ZoneFormDialog({
                 id="relayPin"
                 name="relayPin"
                 type="number"
-                defaultValue={12}
+                defaultValue={zone?.relayPin ?? 12}
               />
             </div>
           </div>
@@ -137,7 +173,7 @@ export function ZoneFormDialog({
                 id="dryThreshold"
                 name="dryThreshold"
                 type="number"
-                defaultValue={1500}
+                defaultValue={zone?.dryThreshold ?? 1500}
               />
             </div>
             <div className="space-y-2">
@@ -146,7 +182,7 @@ export function ZoneFormDialog({
                 id="wetThreshold"
                 name="wetThreshold"
                 type="number"
-                defaultValue={3000}
+                defaultValue={zone?.wetThreshold ?? 3000}
               />
             </div>
           </div>
@@ -158,7 +194,7 @@ export function ZoneFormDialog({
                 id="maxRunSec"
                 name="maxRunSec"
                 type="number"
-                defaultValue={60}
+                defaultValue={zone?.maxRunSec ?? 60}
               />
             </div>
             <div className="space-y-2">
@@ -167,7 +203,7 @@ export function ZoneFormDialog({
                 id="scheduleOn"
                 name="scheduleOn"
                 type="number"
-                defaultValue={420}
+                defaultValue={zone?.scheduleOn ?? 420}
               />
             </div>
           </div>
@@ -178,7 +214,7 @@ export function ZoneFormDialog({
               id="scheduleOff"
               name="scheduleOff"
               type="number"
-              defaultValue={480}
+              defaultValue={zone?.scheduleOff ?? 480}
             />
           </div>
 
