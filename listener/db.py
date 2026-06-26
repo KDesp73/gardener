@@ -38,7 +38,7 @@ class Database:
 
     def _sqlite_execute(self, sql: str, params: tuple = ()):
         with self._conn:
-            self._conn.execute(sql, params)
+            return self._conn.execute(sql, params)
 
     def _sqlite_execute_many(self, sql: str, rows: list[tuple]):
         with self._conn:
@@ -48,43 +48,44 @@ class Database:
 
     def _init_http(self):
         import requests as req
+        # Turso gives libsql:// URLs; HTTP API lives at https://
+        http_url = self.url.replace("libsql://", "https://", 1)
+        self._http_url = http_url.rstrip("/")
         self._http_session = req.Session()
         self._http_session.headers.update({
             "Content-Type": "application/json",
         })
         if self.auth_token:
             self._http_session.headers["Authorization"] = f"Bearer {self.auth_token}"
-        logger.info("Using Turso HTTP: %s", self.url)
+        logger.info("Using Turso HTTP: %s", http_url)
 
     def _http_execute(self, sql: str, params: tuple = ()):
+        def to_arg(v):
+            if v is None:
+                return {"type": "null"}
+            if isinstance(v, bool):
+                return {"type": "integer", "value": "1" if v else "0"}
+            if isinstance(v, int):
+                return {"type": "integer", "value": str(v)}
+            if isinstance(v, float):
+                return {"type": "real", "value": str(v)}
+            return {"type": "text", "value": str(v)}
+
         body = {
             "requests": [
                 {
                     "type": "execute",
-                    "stmt": {"sql": sql, "args": [{"type": "text", "value": str(p)} if p is not None else {"type": "null"} for p in params]},
+                    "stmt": {"sql": sql, "args": [to_arg(p) for p in params]},
                 }
             ]
         }
-        resp = self._http_session.post(f"{self.url}/v2/pipeline", json=body)
+        resp = self._http_session.post(f"{self._http_url}/v2/pipeline", json=body)
         resp.raise_for_status()
 
     def _http_execute_many(self, sql: str, rows: list[tuple]):
-        body = {
-            "requests": [
-                {
-                    "type": "execute",
-                    "stmt": {
-                        "sql": sql,
-                        "args": [
-                            [{"type": "text", "value": str(v)} if v is not None else {"type": "null"} for v in row]
-                            for row in rows
-                        ],
-                    },
-                }
-            ]
-        }
-        resp = self._http_session.post(f"{self.url}/v2/pipeline", json=body)
-        resp.raise_for_status()
+        # falls back to individual executes for simplicity
+        for row in rows:
+            self._http_execute(sql, row)
 
     # ── Execute dispatch ────────────────────────────────────────────────
 
@@ -140,8 +141,7 @@ class Database:
                 sensor_type TEXT NOT NULL,
                 value REAL,
                 unit TEXT DEFAULT '',
-                updated_at TEXT DEFAULT (datetime('now')),
-                UNIQUE(device_id, COALESCE(zone_id, -1), sensor_type)
+                updated_at TEXT DEFAULT (datetime('now'))
             )
         """)
         self.execute("""
@@ -165,13 +165,31 @@ class Database:
 
     def save_reading(self, device_id: str, zone_id: int | None, sensor_type: str, value: float, unit: str = ""):
         logger.debug("save reading %s/%s/%s = %s %s", device_id, zone_id, sensor_type, value, unit)
-        self.execute(
-            "INSERT INTO latest_readings (device_id, zone_id, sensor_type, value, unit, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, datetime('now')) "
-            "ON CONFLICT (device_id, COALESCE(zone_id, -1), sensor_type) "
-            "DO UPDATE SET value = excluded.value, unit = excluded.unit, updated_at = excluded.updated_at",
-            (device_id, zone_id, sensor_type, value, unit),
-        )
+        # Upsert latest_readings: try update first, insert if row missing
+        if self._conn:
+            cursor = self._conn.execute(
+                "UPDATE latest_readings SET value = ?, unit = ?, updated_at = datetime('now') "
+                "WHERE device_id = ? AND IFNULL(zone_id, -1) = IFNULL(?, -1) AND sensor_type = ?",
+                (value, unit, device_id, zone_id, sensor_type),
+            )
+            if cursor.rowcount == 0:
+                self._conn.execute(
+                    "INSERT INTO latest_readings (device_id, zone_id, sensor_type, value, unit) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (device_id, zone_id, sensor_type, value, unit),
+                )
+        else:
+            self._http_execute(
+                "INSERT OR IGNORE INTO latest_readings (device_id, zone_id, sensor_type, value, unit) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (device_id, zone_id, sensor_type, value, unit),
+            )
+            self._http_execute(
+                "UPDATE latest_readings SET value = ?, unit = ?, updated_at = datetime('now') "
+                "WHERE device_id = ? AND sensor_type = ? AND (zone_id = ? OR (zone_id IS NULL AND ? IS NULL))",
+                (value, unit, device_id, sensor_type, zone_id, zone_id),
+            )
+
         self.execute(
             "INSERT INTO readings (device_id, zone_id, sensor_type, value, unit) VALUES (?, ?, ?, ?, ?)",
             (device_id, zone_id, sensor_type, value, unit),
