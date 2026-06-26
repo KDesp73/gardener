@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include "logger.h"
 #include "wifi_utils.h"
+#include <string.h>
+#include "env_config.h"
 
 static const char* auth_type_str(wifi_auth_mode_t mode)
 {
@@ -83,4 +85,14 @@ int wifi_connect(const WifiConfig* cfg)
 
     LOG_ERROR(&g_logger, "wifi", "Failed to connect after %d attempts", max_attempts);
     return -1;
+}
+
+void wifi_load_env(WifiConfig* cfg)
+{
+    strncpy(cfg->ssid,     WIFI_SSID,     sizeof(cfg->ssid) - 1);
+    strncpy(cfg->password, WIFI_PASSWORD, sizeof(cfg->password) - 1);
+    strncpy(cfg->mac,      WIFI_MAC,      sizeof(cfg->mac) - 1);
+    cfg->ssid[sizeof(cfg->ssid) - 1]     = '\0';
+    cfg->password[sizeof(cfg->password) - 1] = '\0';
+    cfg->mac[sizeof(cfg->mac) - 1]       = '\0';
 }

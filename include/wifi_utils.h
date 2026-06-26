@@ -11,6 +11,7 @@ typedef struct {
     char mac[128];
 } WifiConfig;
 
+void wifi_load_env(WifiConfig* cfg);
 int  wifi_connect(const WifiConfig* cfg);
 void wifi_scan(void);
 
