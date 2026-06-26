@@ -8,13 +8,15 @@
 #include "wifi_utils.h"
 #include "sensor.h"
 #include "mqtt.h"
+#include "zone.h"
 
 static SensorManager g_sensors;
 static Dht22Config   g_dht_cfg;
-static SoilConfig    g_soil_cfgs[3];
 
 static void register_sensors(void)
 {
+    sensor_manager_clear(&g_sensors);
+
     int dht_pin = atoi(DHT22_PIN);
     if (dht_pin > 0) {
         g_dht_cfg = (Dht22Config){.pin = (uint8_t)dht_pin, .handle = NULL};
@@ -22,15 +24,20 @@ static void register_sensors(void)
         sensor_manager_add(&g_sensors, "dht22_hum",  NULL,       dht22_read_hum,  &g_dht_cfg);
     }
 
-    const char* soil_pins[] = {SOIL_0_PIN, SOIL_1_PIN, SOIL_2_PIN};
-    const char* soil_names[] = {"soil_0", "soil_1", "soil_2"};
-    for (int i = 0; i < 3; i++) {
-        int pin = atoi(soil_pins[i]);
-        if (pin > 0) {
-            g_soil_cfgs[i] = (SoilConfig){.pin = (uint8_t)pin};
-            sensor_manager_add(&g_sensors, soil_names[i], NULL, soil_moisture_read, &g_soil_cfgs[i]);
-        }
+    for (int i = 0; i < zone_manager_count(); i++) {
+        const ZoneConfig* z = &g_zone_mgr.zones[i];
+        if (!z->enabled) continue;
+
+        char name[SENSOR_NAME_MAX];
+        snprintf(name, sizeof(name), "soil_%d", z->id);
+
+        static SoilConfig soil_cfgs[ZONES_MAX];
+        soil_cfgs[z->id] = (SoilConfig){.pin = z->soil_pin};
+        sensor_manager_add(&g_sensors, name, NULL, soil_moisture_read, &soil_cfgs[z->id]);
     }
+
+    sensor_manager_init_all(&g_sensors);
+    LOG_INFO(&g_logger, "main", "Registered %d sensor(s)", sensor_manager_count(&g_sensors));
 }
 
 static void publish_sensors(void)
@@ -79,14 +86,25 @@ static void publish_status(void)
     mqtt_publish(topic, payload, false);
 }
 
+static void on_mqtt_message(const char* topic, const char* payload, uint16_t len)
+{
+    int zone_id;
+    if (sscanf(topic, "gardener/%*[^/]/zone/%d/config", &zone_id) == 1) {
+        int changed = zone_manager_apply_json((uint8_t)zone_id, payload, len);
+        if (changed > 0) {
+            register_sensors();
+        }
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
     logger_init_global();
 
     sensor_manager_init(&g_sensors);
+    zone_manager_init();
     register_sensors();
-    sensor_manager_init_all(&g_sensors);
 
     WifiConfig wifi;
     wifi_load_env(&wifi);
@@ -95,7 +113,12 @@ void setup()
     MqttConfig mqtt;
     mqtt_load_env(&mqtt);
     mqtt_init(&mqtt);
+    mqtt_set_callback(on_mqtt_message);
     mqtt_connect();
+
+    char topic[MQTT_TOPIC_MAX];
+    mqtt_topic_zone_config_wc(topic, sizeof(topic));
+    mqtt_subscribe(topic);
 }
 
 void loop()

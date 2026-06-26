@@ -39,6 +39,8 @@ void mqtt_topic_env(char* buf, size_t size);
 void mqtt_topic_soil(char* buf, size_t size, int zone);
 void mqtt_topic_water(char* buf, size_t size, int zone);
 void mqtt_topic_cmd_water(char* buf, size_t size, int zone);
+void mqtt_topic_zone_config(char* buf, size_t size, int zone);
+void mqtt_topic_zone_config_wc(char* buf, size_t size);
 void mqtt_topic_announce(char* buf, size_t size);
 
 void mqtt_load_env(MqttConfig* cfg);

@@ -33,6 +33,7 @@ typedef struct {
 } SensorManager;
 
 void          sensor_manager_init(SensorManager* mgr);
+void          sensor_manager_clear(SensorManager* mgr);
 int           sensor_manager_add(SensorManager* mgr, const char* name, SensorInitFn init, SensorReadFn read, void* config);
 int           sensor_manager_init_all(SensorManager* mgr);
 int           sensor_manager_read_all(SensorManager* mgr);

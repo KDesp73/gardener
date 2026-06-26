@@ -162,6 +162,16 @@ void mqtt_topic_cmd_water(char* buf, size_t size, int zone)
     snprintf(buf, size, "gardener/%s/zone/%d/cmd/water", g_cfg.device_id, zone);
 }
 
+void mqtt_topic_zone_config(char* buf, size_t size, int zone)
+{
+    snprintf(buf, size, "gardener/%s/zone/%d/config", g_cfg.device_id, zone);
+}
+
+void mqtt_topic_zone_config_wc(char* buf, size_t size)
+{
+    snprintf(buf, size, "gardener/%s/zone/+/config", g_cfg.device_id);
+}
+
 void mqtt_topic_announce(char* buf, size_t size)
 {
     topic_base(buf, size, "announce");

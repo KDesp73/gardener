@@ -21,6 +21,11 @@ void sensor_manager_init(SensorManager* mgr)
     }
 }
 
+void sensor_manager_clear(SensorManager* mgr)
+{
+    mgr->count = 0;
+}
+
 int sensor_manager_add(SensorManager* mgr, const char* name,
                        SensorInitFn init, SensorReadFn read, void* config)
 {
