@@ -1,20 +1,27 @@
+.DEFAULT_GOAL := help
 
-all: build
-
-build: # Compile
+.PHONY: build
+build: ## Compile
 	pio run
 
-upload: # Upload the script
+.PHONY: upload
+upload: ## Upload the script
 	pio run -t upload
 
-
-monitor: # Start monitoring the port
+.PHONY: monitor 
+monitor: ## Start monitoring the port
 	pio device monitor
 
-cc: # Export compile commands
+.PHONY: cc
+cc: ## Export compile commands
 	pio run -t compiledb
 
-clean:
+.PHONY: clean
+clean: ## Clean all artifacts
 	pio run -t clean
 
-.PHONY: all build upload monitor cc clean
+.PHONY: help
+help: ## Show this help message
+	@echo "Available commands:"
+	@grep -h -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-25s\033[0m %s\n", $$1, $$2}'
