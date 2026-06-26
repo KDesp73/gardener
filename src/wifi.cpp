@@ -5,6 +5,9 @@
 #include <string.h>
 #include "env_config.h"
 
+#define TAG "wifi"
+
+
 static const char* auth_type_str(wifi_auth_mode_t mode)
 {
     switch (mode) {
@@ -23,17 +26,17 @@ static const char* auth_type_str(wifi_auth_mode_t mode)
 
 void wifi_scan()
 {
-    LOG_INFO(&g_logger, "wifi", "Scan start");
+    LOG_INFO(&g_logger, TAG, "Scan start");
 
     int n = WiFi.scanNetworks();
     if (n == 0) {
-        LOG_INFO(&g_logger, "wifi", "No networks found");
+        LOG_INFO(&g_logger, TAG, "No networks found");
     } else {
-        LOG_INFO(&g_logger, "wifi", "%d network(s) found", n);
+        LOG_INFO(&g_logger, TAG, "%d network(s) found", n);
 
-        LOG_INFO(&g_logger, "wifi", "Nr | SSID                             | RSSI | CH | Encryption");
+        LOG_INFO(&g_logger, TAG, "Nr | SSID                             | RSSI | CH | Encryption");
         for (int i = 0; i < n; i++) {
-            LOG_INFO(&g_logger, "wifi", "%-2d | %-32.32s | %4d | %2d | %s",
+            LOG_INFO(&g_logger, TAG, "%-2d | %-32.32s | %4d | %2d | %s",
                      i + 1,
                      WiFi.SSID(i).c_str(),
                      WiFi.RSSI(i),
@@ -66,10 +69,10 @@ int wifi_connect(const WifiConfig* cfg)
 
     if (have_bssid) {
         WiFi.begin(cfg->ssid, cfg->password, 0, bssid);
-        LOG_INFO(&g_logger, "wifi", "Connecting to %s (BSSID: %s) ...", cfg->ssid, cfg->mac);
+        LOG_INFO(&g_logger, TAG, "Connecting to %s (BSSID: %s) ...", cfg->ssid, cfg->mac);
     } else {
         WiFi.begin(cfg->ssid, cfg->password);
-        LOG_INFO(&g_logger, "wifi", "Connecting to %s ...", cfg->ssid);
+        LOG_INFO(&g_logger, TAG, "Connecting to %s ...", cfg->ssid);
     }
 
     int attempts = 0;
@@ -79,11 +82,11 @@ int wifi_connect(const WifiConfig* cfg)
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-        LOG_INFO(&g_logger, "wifi", "Connected, IP: %s", WiFi.localIP().toString().c_str());
+        LOG_INFO(&g_logger, TAG, "Connected, IP: %s", WiFi.localIP().toString().c_str());
         return 0;
     }
 
-    LOG_ERROR(&g_logger, "wifi", "Failed to connect after %d attempts", max_attempts);
+    LOG_ERROR(&g_logger, TAG, "Failed to connect after %d attempts", max_attempts);
     return -1;
 }
 
