@@ -186,9 +186,9 @@ void mqtt_load_env(MqttConfig* cfg)
     strncpy(cfg->host, MQTT_HOST, sizeof(cfg->host) - 1);
     int port = atoi(MQTT_PORT);
     cfg->port = port > 0 ? (uint16_t)port : 1883;
-    strncpy(cfg->user, MQTT_USER, sizeof(cfg->user) - 1);
-    strncpy(cfg->pass, MQTT_PASS, sizeof(cfg->pass) - 1);
+    strncpy(cfg->user, MQTT_USERNAME, sizeof(cfg->user) - 1);
 
+    strncpy(cfg->pass, MQTT_PASSWORD, sizeof(cfg->pass) - 1);
     if (MQTT_DEVICE_ID[0]) {
         strncpy(cfg->device_id, MQTT_DEVICE_ID, sizeof(cfg->device_id) - 1);
     } else {
