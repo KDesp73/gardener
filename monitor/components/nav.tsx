@@ -3,17 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Sprout, LayoutDashboard, LogIn, LogOut } from "lucide-react";
+import { Sprout, LogIn, LogOut } from "lucide-react";
 
 export function Nav() {
   const pathname = usePathname();
-
-  const links = [
-    { href: "/", label: "Plants", icon: Sprout },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  ];
-
   const isLoginPage = pathname === "/login";
+  const isDashboard = pathname.startsWith("/dashboard");
 
   return (
     <nav className="border-b border-border bg-card">
@@ -21,31 +16,24 @@ export function Nav() {
         <div className="flex items-center gap-2 sm:gap-6">
           <Link
             href="/"
-            className="text-lg font-bold tracking-tight text-foreground"
+            className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground"
           >
+            <Sprout className="h-5 w-5 text-primary" />
             Gardener
           </Link>
           <div className="flex items-center gap-1">
-            {links.map((link) => {
-              const active = pathname === link.href
-                || (link.href !== "/" && pathname.startsWith(link.href));
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "flex items-center justify-center rounded-md px-2 py-2 text-sm transition-colors sm:gap-1.5 sm:px-3",
-                    active
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                  )}
-                  aria-label={link.label}
-                >
-                  <link.icon className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">{link.label}</span>
-                </Link>
-              );
-            })}
+            <Link
+              href="/dashboard"
+              className={cn(
+                "flex items-center justify-center rounded-md px-2 py-2 text-sm transition-colors sm:gap-1.5 sm:px-3",
+                isDashboard
+                  ? "bg-primary/10 font-medium text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+              aria-label="Dashboard"
+            >
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
           </div>
         </div>
         <div className="flex items-center gap-1">

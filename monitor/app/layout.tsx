@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { Nav } from "@/components/nav";
 import { PWARegister } from "@/components/pwa-register";
 import "./globals.css";
 
@@ -56,10 +55,7 @@ export default function RootLayout({
     >
       <body className="min-h-screen flex flex-col">
         <PWARegister />
-        <Nav />
-        <main className="flex-1">
-          {children}
-        </main>
+        {children}
         <Toaster />
       </body>
     </html>
