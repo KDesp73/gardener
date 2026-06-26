@@ -145,17 +145,17 @@ export function ZoneCard({
 
   return (
     <Card className={enabled ? "" : "opacity-50"}>
-      <CardHeader className="flex flex-row items-start justify-between pb-2">
-        <div className="space-y-1">
+      <CardHeader className="flex-col items-start gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="w-full space-y-1 sm:w-auto">
           <CardTitle className="text-lg">{name}</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
             {waterState?.value === 1 && <Badge variant="default">Watering</Badge>}
             {stale && <Badge variant="outline">old data</Badge>}
             <span className="text-xs text-muted-foreground">Z{zoneId}</span>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex w-full items-center justify-end gap-1 sm:w-auto">
           {!readOnly && allZones && allDevices && (
             <ZoneFormDialog
               devices={allDevices}
@@ -172,7 +172,7 @@ export function ZoneCard({
                 scheduleOn,
                 scheduleOff,
               }}
-              trigger={<Button variant="ghost" size="sm">Edit</Button>}
+              trigger={<Button variant="ghost" size="sm" className="h-9 px-3">Edit</Button>}
             />
           )}
           {!readOnly && (
@@ -188,7 +188,8 @@ export function ZoneCard({
                 variant="ghost"
                 size="sm"
                 disabled={deletePending}
-                className="text-muted-foreground hover:text-destructive"
+                className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+                aria-label="Delete zone"
               >
                 {deletePending ? "..." : "✕"}
               </Button>

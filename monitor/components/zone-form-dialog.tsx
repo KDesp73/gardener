@@ -145,7 +145,7 @@ export function ZoneFormDialog({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="soilPin">Soil Sensor Pin</Label>
               <Input
@@ -166,7 +166,7 @@ export function ZoneFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="dryThreshold">Dry Threshold</Label>
               <Input
@@ -187,7 +187,7 @@ export function ZoneFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="maxRunSec">Max Run (s)</Label>
               <Input
