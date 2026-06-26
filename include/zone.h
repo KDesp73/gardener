@@ -23,6 +23,7 @@ typedef struct {
     uint16_t schedule_on;    // minutes from midnight
     uint16_t schedule_off;
     bool     enabled;
+    uint8_t  sensor_type;    // 0 = capacitive, 1 = resistive
 } ZoneConfig;
 
 typedef struct {

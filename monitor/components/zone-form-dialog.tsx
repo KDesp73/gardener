@@ -45,6 +45,7 @@ export function ZoneFormDialog({
         deviceId: formData.get("deviceId") as string,
         zoneId: parseInt(formData.get("zoneId") as string),
         name: formData.get("name") as string,
+        sensorType: (formData.get("sensorType") as "capacitive" | "resistive") || "capacitive",
         soilPin: parseInt(formData.get("soilPin") as string) || 0,
         relayPin: parseInt(formData.get("relayPin") as string) || 0,
         dryThreshold: parseInt(formData.get("dryThreshold") as string) || 1500,
@@ -89,6 +90,23 @@ export function ZoneFormDialog({
           <div className="space-y-2">
             <Label htmlFor="name">Plant Name</Label>
             <Input id="name" name="name" placeholder="e.g. Basil" required />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sensorType">Soil Sensor Type</Label>
+            <Select name="sensorType" defaultValue="capacitive">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="capacitive">
+                  Capacitive (dry=low, wet=high)
+                </SelectItem>
+                <SelectItem value="resistive">
+                  Resistive (dry=high, wet=low)
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

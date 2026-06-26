@@ -16,6 +16,7 @@ type ZoneRow = {
   device_id: string;
   zone_id: number;
   name: string;
+  sensor_type: string;
   soil_pin: number;
   relay_pin: number;
   dry_threshold: number;
@@ -175,6 +176,7 @@ export function DashboardClient({
             deviceId={z.device_id}
             zoneId={z.zone_id}
             name={z.name}
+            sensorType={z.sensor_type || "capacitive"}
             soilPin={z.soil_pin}
             relayPin={z.relay_pin}
             dryThreshold={z.dry_threshold}

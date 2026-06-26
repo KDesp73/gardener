@@ -110,6 +110,9 @@ int zone_manager_apply_json(uint8_t id, const char* json, size_t len)
     cfg.schedule_off = doc["schedule_off"] | 0;
     cfg.enabled      = doc["enabled"]      | true;
 
+    const char* st = doc["sensor_type"] | "capacitive";
+    cfg.sensor_type = (strcmp(st, "resistive") == 0) ? 1 : 0;
+
     if (z) {
         memcpy(z, &cfg, sizeof(ZoneConfig));
         LOG_INFO(&g_logger, TAG, "Updated zone %d: %s", id, cfg.name);

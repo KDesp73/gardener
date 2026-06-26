@@ -38,6 +38,7 @@ async function initSchema() {
       max_run_sec INTEGER DEFAULT 60,
       schedule_on INTEGER DEFAULT 420,
       schedule_off INTEGER DEFAULT 480,
+      sensor_type TEXT NOT NULL DEFAULT 'capacitive',
       enabled INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
@@ -69,4 +70,13 @@ async function initSchema() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // migration: add sensor_type column to zones if missing
+  try {
+    await db!.execute(
+      "ALTER TABLE zones ADD COLUMN sensor_type TEXT NOT NULL DEFAULT 'capacitive'",
+    );
+  } catch {
+    // column already exists
+  }
 }

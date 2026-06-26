@@ -42,10 +42,33 @@ function MoistureBar({
   );
 }
 
+function isDry(
+  moisture: number,
+  dryThreshold: number,
+  wetThreshold: number,
+  sensorType: string,
+) {
+  return sensorType === "resistive"
+    ? moisture >= dryThreshold
+    : moisture <= dryThreshold;
+}
+
+function isWet(
+  moisture: number,
+  dryThreshold: number,
+  wetThreshold: number,
+  sensorType: string,
+) {
+  return sensorType === "resistive"
+    ? moisture <= wetThreshold
+    : moisture >= wetThreshold;
+}
+
 export function ZoneCard({
   deviceId,
   zoneId,
   name,
+  sensorType,
   soilPin,
   relayPin,
   dryThreshold,
@@ -59,6 +82,7 @@ export function ZoneCard({
   deviceId: string;
   zoneId: number;
   name: string;
+  sensorType: string;
   soilPin: number;
   relayPin: number;
   dryThreshold: number;
@@ -83,8 +107,8 @@ export function ZoneCard({
 
   let status: "dry" | "wet" | "ok" | "unknown" = "unknown";
   if (moisture !== undefined) {
-    if (moisture <= dryThreshold) status = "dry";
-    else if (moisture >= wetThreshold) status = "wet";
+    if (isDry(moisture, dryThreshold, wetThreshold, sensorType)) status = "dry";
+    else if (isWet(moisture, dryThreshold, wetThreshold, sensorType)) status = "wet";
     else status = "ok";
   }
 
