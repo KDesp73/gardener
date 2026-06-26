@@ -24,7 +24,11 @@ def generate_env_header():
         "",
     ]
 
-    keys = ["WIFI_SSID", "WIFI_PASSWORD", "WIFI_MAC"]
+    keys = [
+        "WIFI_SSID", "WIFI_PASSWORD", "WIFI_MAC",
+        "DHT22_PIN",
+        "SOIL_0_PIN", "SOIL_1_PIN", "SOIL_2_PIN",
+    ]
     for k in keys:
         v = config.get(k, "")
         if v:
