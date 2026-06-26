@@ -50,6 +50,14 @@ export async function getZones(deviceId: string) {
   return result.rows;
 }
 
+export async function getAllZones() {
+  const db = getDb();
+  const result = await db.execute(
+    "SELECT * FROM zones ORDER BY zone_id",
+  );
+  return result.rows;
+}
+
 export async function getLatestReadings(deviceId: string) {
   const db = getDb();
   const result = await db.execute({
