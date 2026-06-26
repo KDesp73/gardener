@@ -6,12 +6,12 @@ Extensible ESP32-based automated watering system. A single ESP32 can serve multi
 
 ```
 ┌─────────────────────┐     ┌──────────────────────┐
-│  ESP32 "balcony"    │     │  ESP32 "greenhouse"   │
-│                     │     │                       │
-│ Zone 0: basil       │     │ Zone 0: tomatoes      │
-│ Zone 1: mint        │     │ Zone 1: peppers       │
-│ Zone 2: rosemary    │     │ Zone 2: cucumbers     │
-└────────┬────────────┘     └───────────┬───────────┘
+│  ESP32 "balcony"    │     │  ESP32 "greenhouse"  │
+│                     │     │                      │
+│ Zone 0: basil       │     │ Zone 0: tomatoes     │
+│ Zone 1: mint        │     │ Zone 1: peppers      │
+│ Zone 2: rosemary    │     │ Zone 2: cucumbers    │
+└────────┬────────────┘     └───────────┬──────────┘
          │                              │
          └──────────┬───────────────────┘
                     │ MQTT
