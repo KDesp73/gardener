@@ -1,37 +1,85 @@
 "use client";
 
+import { useActionState, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { deleteZone } from "@/app/actions";
-import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { deleteZone, toggleZone, waterZone } from "@/app/actions";
 
 type ReadingMap = Record<string, number>;
+
+function formatTime(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+function MoistureBar({
+  value,
+  dry,
+  wet,
+}: {
+  value: number;
+  dry: number;
+  wet: number;
+}) {
+  const range = wet - dry;
+  const pct = range > 0 ? ((value - dry) / range) * 100 : 50;
+  const clamped = Math.max(0, Math.min(100, pct));
+
+  let color = "bg-amber-500";
+  if (value <= dry) color = "bg-red-500";
+  else if (value >= wet) color = "bg-blue-500";
+
+  return (
+    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        className={`absolute inset-y-0 left-0 rounded-full transition-all ${color}`}
+        style={{ width: `${clamped}%` }}
+      />
+    </div>
+  );
+}
 
 export function ZoneCard({
   deviceId,
   zoneId,
   name,
+  soilPin,
+  relayPin,
   dryThreshold,
   wetThreshold,
+  maxRunSec,
+  scheduleOn,
+  scheduleOff,
   enabled,
   readings,
 }: {
   deviceId: string;
   zoneId: number;
   name: string;
+  soilPin: number;
+  relayPin: number;
   dryThreshold: number;
   wetThreshold: number;
+  maxRunSec: number;
+  scheduleOn: number;
+  scheduleOff: number;
   enabled: boolean;
   readings: ReadingMap;
 }) {
-  const [state, action, pending] = useActionState(
+  const [showConfig, setShowConfig] = useState(false);
+
+  const [deleteState, deleteAction, deletePending] = useActionState(
     () => deleteZone(deviceId, zoneId),
     null,
   );
 
   const moisture = readings[`${deviceId}:${zoneId}:moisture`];
   const waterState = readings[`${deviceId}:${zoneId}:water`];
+  const temp = readings[`${deviceId}:env:temp`];
+  const hum = readings[`${deviceId}:env:hum`];
 
   let status: "dry" | "wet" | "ok" | "unknown" = "unknown";
   if (moisture !== undefined) {
@@ -40,53 +88,123 @@ export function ZoneCard({
     else status = "ok";
   }
 
+  const statusBadge = {
+    dry: { label: "Needs water", variant: "destructive" as const },
+    wet: { label: "Wet", variant: "default" as const },
+    ok: { label: "OK", variant: "secondary" as const },
+    unknown: { label: "—", variant: "outline" as const },
+  }[status];
+
   return (
     <Card className={enabled ? "" : "opacity-50"}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg">{name}</CardTitle>
+      <CardHeader className="flex flex-row items-start justify-between pb-2">
+        <div className="space-y-1">
+          <CardTitle className="text-lg">{name}</CardTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+            {waterState === 1 && <Badge variant="default">Watering</Badge>}
+            <span className="text-xs text-muted-foreground">
+              Z{zoneId}
+            </span>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-          {moisture !== undefined && (
-            <Badge
-              variant={
-                status === "dry"
-                  ? "destructive"
-                  : status === "wet"
-                    ? "default"
-                    : "secondary"
-              }
+          <Switch
+            size="sm"
+            defaultChecked={enabled}
+            onCheckedChange={(checked) => toggleZone(deviceId, zoneId, checked)}
+          />
+          <form action={deleteAction}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={deletePending}
+              className="text-muted-foreground hover:text-destructive"
             >
-              {status === "dry"
-                ? "Needs water"
-                : status === "wet"
-                  ? "Wet"
-                  : status === "ok"
-                    ? "OK"
-                    : "—"}
-            </Badge>
-          )}
-          {waterState === 1 && <Badge variant="default">Watering</Badge>}
+              {deletePending ? "..." : "✕"}
+            </Button>
+          </form>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">Moisture:</span>{" "}
-            {moisture !== undefined ? moisture : "—"}
+
+      <CardContent className="space-y-4">
+        {/* Moisture */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Moisture</span>
+            <span className="font-mono tabular-nums">
+              {moisture !== undefined ? moisture : "—"}
+              <span className="text-xs text-muted-foreground"> / {wetThreshold}</span>
+            </span>
           </div>
-          <div>
-            <span className="text-muted-foreground">Dry threshold:</span>{" "}
-            {dryThreshold}
+          {moisture !== undefined && (
+            <MoistureBar
+              value={moisture}
+              dry={dryThreshold}
+              wet={wetThreshold}
+            />
+          )}
+        </div>
+
+        {/* Quick stats */}
+        <div className="grid grid-cols-3 gap-2 text-center text-sm">
+          <div className="rounded-lg bg-muted/50 p-2">
+            <div className="text-xs text-muted-foreground">Temp</div>
+            <div className="font-mono tabular-nums">
+              {temp !== undefined ? `${temp.toFixed(1)}°` : "—"}
+            </div>
           </div>
-          <div>
-            <span className="text-muted-foreground">Wet threshold:</span>{" "}
-            {wetThreshold}
+          <div className="rounded-lg bg-muted/50 p-2">
+            <div className="text-xs text-muted-foreground">Humidity</div>
+            <div className="font-mono tabular-nums">
+              {hum !== undefined ? `${hum.toFixed(0)}%` : "—"}
+            </div>
+          </div>
+          <div className="rounded-lg bg-muted/50 p-2">
+            <div className="text-xs text-muted-foreground">Schedule</div>
+            <div className="font-mono tabular-nums">
+              {formatTime(scheduleOn)}–{formatTime(scheduleOff)}
+            </div>
           </div>
         </div>
-        <form action={action} className="mt-3">
-          <Button variant="destructive" size="sm" disabled={pending}>
-            {pending ? "Removing..." : "Remove"}
-          </Button>
-        </form>
+
+        {/* Water now */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => waterZone(deviceId, zoneId, maxRunSec)}
+        >
+          Water now ({maxRunSec}s)
+        </Button>
+
+        {/* Config toggle */}
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => setShowConfig(!showConfig)}
+        >
+          {showConfig ? "Hide" : "Show"} config
+        </button>
+
+        {showConfig && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>Soil pin</span>
+            <span className="font-mono text-right">{soilPin}</span>
+            <span>Relay pin</span>
+            <span className="font-mono text-right">{relayPin}</span>
+            <span>Dry threshold</span>
+            <span className="font-mono text-right">{dryThreshold}</span>
+            <span>Wet threshold</span>
+            <span className="font-mono text-right">{wetThreshold}</span>
+            <span>Max run</span>
+            <span className="font-mono text-right">{maxRunSec}s</span>
+            <span>Schedule</span>
+            <span className="font-mono text-right">
+              {formatTime(scheduleOn)}–{formatTime(scheduleOff)}
+            </span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

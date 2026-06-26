@@ -1,7 +1,7 @@
 "use server";
 
 import { getDb } from "@/lib/db";
-import { publishConfig } from "@/lib/mqtt-server";
+import { publishConfig, publishCommand } from "@/lib/mqtt-server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -125,6 +125,30 @@ export async function deleteZone(deviceId: string, zoneId: number) {
   }
 
   revalidatePath("/dashboard");
+}
+
+export async function toggleZone(deviceId: string, zoneId: number, enabled: boolean) {
+  const db = getDb();
+  await db.execute({
+    sql: "UPDATE zones SET enabled = ?, updated_at = datetime('now') WHERE device_id = ? AND zone_id = ?",
+    args: [enabled ? 1 : 0, deviceId, zoneId],
+  });
+
+  try {
+    await publishConfig(deviceId, zoneId, { enabled });
+  } catch (e) {
+    console.warn("MQTT publish failed:", e);
+  }
+
+  revalidatePath("/dashboard");
+}
+
+export async function waterZone(deviceId: string, zoneId: number, seconds: number) {
+  try {
+    await publishCommand(deviceId, zoneId, "water", { state: "on", duration: seconds });
+  } catch (e) {
+    console.warn("MQTT publish failed:", e);
+  }
 }
 
 export async function saveReading(
