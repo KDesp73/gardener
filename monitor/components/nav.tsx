@@ -46,6 +46,20 @@ export function Nav() {
               <LogOut className="h-5 w-5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Back</span>
             </Link>
+          ) : isDashboard ? (
+            <button
+              type="button"
+              onClick={() => {
+                fetch("/api/logout", { method: "POST" }).then(() => {
+                  window.location.href = "/";
+                });
+              }}
+              className="flex items-center justify-center rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:gap-1.5 sm:px-3"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
           ) : (
             <Link
               href="/login"
