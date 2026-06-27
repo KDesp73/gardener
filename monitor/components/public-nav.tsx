@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import { Sprout, LayoutDashboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function PublicNav() {
   return (
@@ -11,6 +12,12 @@ export function PublicNav() {
         >
           <Sprout className="h-6 w-6 text-primary" />
           Gardener
+        </Link>
+        <Link href="/dashboard">
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <LayoutDashboard className="h-4 w-4" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </Button>
         </Link>
       </div>
     </nav>

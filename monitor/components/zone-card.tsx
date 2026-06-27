@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { deleteZone, toggleZone, waterZone } from "@/app/actions";
 import { ReadingsChart } from "@/components/readings-chart";
-import { ZoneFormDialog } from "@/components/zone-form-dialog";
+import { Pencil } from "lucide-react";
 
 const STALE_AFTER_MS = 30_000;
 
@@ -185,26 +186,15 @@ export function ZoneCard({
           </div>
         </div>
         <div className="flex w-full items-center justify-end gap-1 sm:w-auto">
-          {!readOnly && allZones && allDevices && (
-            <ZoneFormDialog
-              devices={allDevices}
-              zone={{
-                deviceId,
-                zoneId,
-                name,
-                sensorType,
-                soilPin,
-                relayPin,
-                dryThreshold,
-                wetThreshold,
-                maxRunSec,
-                scheduleOn,
-                scheduleOff,
-                image,
-                plants: plantsJson,
-              }}
-              trigger={<Button variant="ghost" size="sm" className="h-9 px-3">Edit</Button>}
-            />
+          {!readOnly && (
+            <Link
+              href={`/dashboard/zones/${deviceId}/${zoneId}/edit`}
+            >
+              <Button variant="ghost" size="sm" className="h-9 px-3 gap-1.5">
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </Link>
           )}
           {!readOnly && (
             <Switch

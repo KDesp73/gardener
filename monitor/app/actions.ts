@@ -101,6 +101,16 @@ export async function getAllZones() {
   return serialize<ZoneRow>(result.rows);
 }
 
+export async function getZone(deviceId: string, zoneId: number) {
+  const db = getDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM zones WHERE device_id = ? AND zone_id = ?",
+    args: [deviceId, zoneId],
+  });
+  const rows = serialize<ZoneRow>(result.rows);
+  return rows[0] || null;
+}
+
 export async function getLatestReadings(deviceId: string) {
   const db = getDb();
   const result = await db.execute({
