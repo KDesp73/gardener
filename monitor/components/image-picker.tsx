@@ -4,6 +4,35 @@ import { useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const MAX_DIM = 800;
+const JPEG_QUALITY = 0.8;
+
+function resizeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        if (width > height) {
+          height = Math.round((height / width) * MAX_DIM);
+          width = MAX_DIM;
+        } else {
+          width = Math.round((width / height) * MAX_DIM);
+          height = MAX_DIM;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", JPEG_QUALITY));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function ImagePicker({
   value,
   onChange,
@@ -14,17 +43,17 @@ export function ImagePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(value ?? null);
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
+    try {
+      const dataUrl = await resizeImage(file);
       setPreview(dataUrl);
       onChange(dataUrl);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn("Image resize failed", err);
+    }
   }
 
   function handleRemove() {

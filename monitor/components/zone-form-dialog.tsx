@@ -60,23 +60,30 @@ export function ZoneFormDialog({
   const [open, setOpen] = useState(false);
   const [image, setImage] = useState<string | null>(zone?.image ?? null);
 
+  const [error, setError] = useState<string | null>(null);
+
   const [, action] = useActionState(
     async (_prev: unknown, formData: FormData) => {
-      await createZone({
-        deviceId: formData.get("deviceId") as string,
-        zoneId: parseInt(formData.get("zoneId") as string),
-        name: formData.get("name") as string,
-        sensorType: (formData.get("sensorType") as "capacitive" | "resistive") || "capacitive",
-        soilPin: parseInt(formData.get("soilPin") as string) || 0,
-        relayPin: parseInt(formData.get("relayPin") as string) || 0,
-        dryThreshold: parseInt(formData.get("dryThreshold") as string) || 1500,
-        wetThreshold: parseInt(formData.get("wetThreshold") as string) || 3000,
-        maxRunSec: parseInt(formData.get("maxRunSec") as string) || 60,
-        scheduleOn: parseInt(formData.get("scheduleOn") as string) || 420,
-        scheduleOff: parseInt(formData.get("scheduleOff") as string) || 480,
-        image: (formData.get("image") as string) || undefined,
-      });
-      setOpen(false);
+      setError(null);
+      try {
+        await createZone({
+          deviceId: formData.get("deviceId") as string,
+          zoneId: parseInt(formData.get("zoneId") as string),
+          name: formData.get("name") as string,
+          sensorType: (formData.get("sensorType") as "capacitive" | "resistive") || "capacitive",
+          soilPin: parseInt(formData.get("soilPin") as string) || 0,
+          relayPin: parseInt(formData.get("relayPin") as string) || 0,
+          dryThreshold: parseInt(formData.get("dryThreshold") as string) || 1500,
+          wetThreshold: parseInt(formData.get("wetThreshold") as string) || 3000,
+          maxRunSec: parseInt(formData.get("maxRunSec") as string) || 60,
+          scheduleOn: parseInt(formData.get("scheduleOn") as string) || 420,
+          scheduleOff: parseInt(formData.get("scheduleOff") as string) || 480,
+          image: (formData.get("image") as string) || undefined,
+        });
+        setOpen(false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Save failed");
+      }
     },
     null,
   );
@@ -225,6 +232,7 @@ export function ZoneFormDialog({
           <input type="hidden" name="image" value={image ?? ""} />
           <ImagePicker value={image} onChange={setImage} />
 
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <SubmitButton />
         </form>
       </DialogContent>
