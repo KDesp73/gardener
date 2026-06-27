@@ -12,10 +12,7 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="mb-8 text-3xl font-bold tracking-tight">Gardener</h1>
-      <DashboardClient
-        zones={zones as unknown as any[]}
-        devices={devices as unknown as any[]}
-      />
+      <DashboardClient zones={zones} devices={devices} />
     </div>
   );
 }

@@ -5,6 +5,43 @@ import { publishConfig, publishCommand } from "@/lib/mqtt-server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+export interface DeviceRow {
+  id: string;
+  name: string;
+  mqtt_host: string;
+  last_seen: string | null;
+  created_at: string;
+}
+
+export interface ZoneRow {
+  id: number;
+  device_id: string;
+  zone_id: number;
+  name: string;
+  soil_pin: number;
+  relay_pin: number;
+  dry_threshold: number;
+  wet_threshold: number;
+  max_run_sec: number;
+  schedule_on: number;
+  schedule_off: number;
+  sensor_type: string;
+  enabled: number;
+  image: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReadingRow {
+  id: number;
+  device_id: string;
+  zone_id: number | null;
+  sensor_type: string;
+  value: number;
+  unit: string;
+  updated_at: string;
+}
+
 const zoneSchema = z.object({
   deviceId: z.string().min(1),
   zoneId: z.coerce.number().int().min(0),
@@ -35,10 +72,14 @@ export async function discoverDevice(deviceId: string, name?: string) {
   revalidatePath("/dashboard");
 }
 
+function serialize<T>(rows: unknown[]): T[] {
+  return rows.map((r) => Object.assign({}, r)) as T[];
+}
+
 export async function getDevices() {
   const db = getDb();
   const result = await db.execute("SELECT * FROM devices ORDER BY name");
-  return result.rows;
+  return serialize<DeviceRow>(result.rows);
 }
 
 export async function getZones(deviceId: string) {
@@ -47,7 +88,7 @@ export async function getZones(deviceId: string) {
     sql: "SELECT * FROM zones WHERE device_id = ? ORDER BY zone_id",
     args: [deviceId],
   });
-  return result.rows;
+  return serialize<ZoneRow>(result.rows);
 }
 
 export async function getAllZones() {
@@ -55,7 +96,7 @@ export async function getAllZones() {
   const result = await db.execute(
     "SELECT * FROM zones ORDER BY zone_id",
   );
-  return result.rows;
+  return serialize<ZoneRow>(result.rows);
 }
 
 export async function getLatestReadings(deviceId: string) {
@@ -64,7 +105,7 @@ export async function getLatestReadings(deviceId: string) {
     sql: "SELECT * FROM latest_readings WHERE device_id = ?",
     args: [deviceId],
   });
-  return result.rows;
+  return serialize<ReadingRow>(result.rows);
 }
 
 export async function upsertDevice(deviceId: string, name: string) {

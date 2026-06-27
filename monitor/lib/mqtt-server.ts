@@ -6,7 +6,7 @@ function connectClient() {
   const username = process.env.MQTT_USERNAME || "";
   const password = process.env.MQTT_PASSWORD || "";
 
-  const url = `mqtt://${host}:${port}`;
+  const url = `mqtts://${host}:${port}`;
   return mqtt.connect(url, {
     username: username || undefined,
     password: password || undefined,
