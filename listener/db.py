@@ -59,31 +59,43 @@ class Database:
             self._http_session.headers["Authorization"] = f"Bearer {self.auth_token}"
         logger.info("Using Turso HTTP: %s", http_url)
 
-    def _http_execute(self, sql: str, params: tuple = ()):
-        def to_arg(v):
-            if v is None:
-                return {"type": "null"}
-            if isinstance(v, bool):
-                return {"type": "integer", "value": "1" if v else "0"}
-            if isinstance(v, int):
-                return {"type": "integer", "value": str(v)}
-            if isinstance(v, float):
-                return {"type": "real", "value": str(v)}
-            return {"type": "text", "value": str(v)}
+    @staticmethod
+    def _to_arg(v):
+        if v is None:
+            return {"type": "null"}
+        if isinstance(v, bool):
+            return {"type": "integer", "value": 1 if v else 0}
+        if isinstance(v, int):
+            return {"type": "integer", "value": v}
+        if isinstance(v, float):
+            return {"type": "float", "value": v}
+        return {"type": "text", "value": str(v)}
 
+    def _http_pipeline(self, stmts: list[tuple[str, tuple]]):
         body = {
+            "baton": None,
             "requests": [
                 {
                     "type": "execute",
-                    "stmt": {"sql": sql, "args": [to_arg(p) for p in params]},
+                    "stmt": {
+                        "sql": sql,
+                        "args": [self._to_arg(p) for p in params],
+                    },
                 }
-            ]
+                for sql, params in stmts
+            ],
         }
         resp = self._http_session.post(f"{self._http_url}/v2/pipeline", json=body)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except Exception:
+            logger.error("Turso error (HTTP %d): %s", resp.status_code, resp.text)
+            raise
+
+    def _http_execute(self, sql: str, params: tuple = ()):
+        self._http_pipeline([(sql, params)])
 
     def _http_execute_many(self, sql: str, rows: list[tuple]):
-        # falls back to individual executes for simplicity
         for row in rows:
             self._http_execute(sql, row)
 
@@ -155,9 +167,16 @@ class Database:
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
-        # Migration: add sensor_type to zones
+        # Migrations
         try:
             self.execute("ALTER TABLE zones ADD COLUMN sensor_type TEXT NOT NULL DEFAULT 'capacitive'")
+        except Exception:
+            pass
+        try:
+            self.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_latest_unique
+                ON latest_readings(device_id, COALESCE(zone_id, -1), sensor_type)
+            """)
         except Exception:
             pass
 
@@ -165,7 +184,6 @@ class Database:
 
     def save_reading(self, device_id: str, zone_id: int | None, sensor_type: str, value: float, unit: str = ""):
         logger.debug("save reading %s/%s/%s = %s %s", device_id, zone_id, sensor_type, value, unit)
-        # Upsert latest_readings: try update first, insert if row missing
         if self._conn:
             cursor = self._conn.execute(
                 "UPDATE latest_readings SET value = ?, unit = ?, updated_at = datetime('now') "
@@ -178,22 +196,27 @@ class Database:
                     "VALUES (?, ?, ?, ?, ?)",
                     (device_id, zone_id, sensor_type, value, unit),
                 )
-        else:
-            self._http_execute(
-                "INSERT OR IGNORE INTO latest_readings (device_id, zone_id, sensor_type, value, unit) "
-                "VALUES (?, ?, ?, ?, ?)",
+            self._conn.execute(
+                "INSERT INTO readings (device_id, zone_id, sensor_type, value, unit) VALUES (?, ?, ?, ?, ?)",
                 (device_id, zone_id, sensor_type, value, unit),
             )
-            self._http_execute(
-                "UPDATE latest_readings SET value = ?, unit = ?, updated_at = datetime('now') "
-                "WHERE device_id = ? AND sensor_type = ? AND (zone_id = ? OR (zone_id IS NULL AND ? IS NULL))",
-                (value, unit, device_id, sensor_type, zone_id, zone_id),
-            )
-
-        self.execute(
-            "INSERT INTO readings (device_id, zone_id, sensor_type, value, unit) VALUES (?, ?, ?, ?, ?)",
-            (device_id, zone_id, sensor_type, value, unit),
-        )
+        else:
+            self._http_pipeline([
+                (
+                    "INSERT OR IGNORE INTO latest_readings (device_id, zone_id, sensor_type, value, unit) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (device_id, zone_id, sensor_type, value, unit),
+                ),
+                (
+                    "UPDATE latest_readings SET value = ?, unit = ?, updated_at = datetime('now') "
+                    "WHERE device_id = ? AND sensor_type = ? AND (zone_id = ? OR (zone_id IS NULL AND ? IS NULL))",
+                    (value, unit, device_id, sensor_type, zone_id, zone_id),
+                ),
+                (
+                    "INSERT INTO readings (device_id, zone_id, sensor_type, value, unit) VALUES (?, ?, ?, ?, ?)",
+                    (device_id, zone_id, sensor_type, value, unit),
+                ),
+            ])
 
     def upsert_device(self, device_id: str, name: str | None = None):
         logger.debug("upsert device %s", device_id)
