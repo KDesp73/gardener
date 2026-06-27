@@ -2,7 +2,7 @@
 #include "logger.h"
 #include "env_config.h"
 #include <Arduino.h>
-#include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <string.h>
 #include <stdlib.h>
@@ -12,8 +12,8 @@
 #define RETRY_MIN_MS  1000
 #define RETRY_MAX_MS  30000
 
-static WiFiClient    g_wifi_client;
-static PubSubClient  g_client(g_wifi_client);
+static WiFiClientSecure g_wifi_client;
+static PubSubClient    g_client(g_wifi_client);
 static MqttConfig    g_cfg;
 static MqttCallback  g_user_cb  = NULL;
 static bool          g_initial  = true;
@@ -37,6 +37,7 @@ static void on_mqtt_message(char* topic, byte* payload, unsigned int len)
 void mqtt_init(const MqttConfig* cfg)
 {
     memcpy(&g_cfg, cfg, sizeof(g_cfg));
+    g_wifi_client.setInsecure();
     g_client.setServer(g_cfg.host, g_cfg.port);
     g_client.setCallback(on_mqtt_message);
 }
