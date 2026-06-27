@@ -84,7 +84,7 @@ function SpeciesSearch({
   const [results, setResults] = useState<PerenualSpecies[]>([]);
   const [searching, setSearching] = useState(false);
   const [open, setOpen] = useState(false);
-  const [input, setInput] = useState(value);
+  const [input, setInput] = useState(value ?? "");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
 

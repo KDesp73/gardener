@@ -20,6 +20,19 @@ static Dht22Config   g_dht_cfg;
 static bool          g_watering[ZONES_MAX];
 static unsigned long g_water_start[ZONES_MAX];
 
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
+static void update_builtin_led(void)
+{
+    bool any_on = false;
+    for (int i = 0; i < ZONES_MAX; i++) {
+        if (g_watering[i]) { any_on = true; break; }
+    }
+    digitalWrite(LED_BUILTIN, any_on ? HIGH : LOW);
+}
+
 static const ZoneConfig* get_zone_by_id(uint8_t id)
 {
     for (int i = 0; i < zone_manager_count(); i++) {
@@ -168,6 +181,7 @@ static void manage_watering(unsigned long now_ms)
             if (g_watering[z->id]) {
                 g_watering[z->id] = false;
                 if (z->relay_pin > 0) digitalWrite(z->relay_pin, LOW);
+                update_builtin_led();
             }
             continue;
         }
@@ -180,6 +194,7 @@ static void manage_watering(unsigned long now_ms)
             if (elapsed >= z->max_run_sec || zone_is_wet_enough(z, moisture)) {
                 g_watering[z->id] = false;
                 digitalWrite(z->relay_pin, LOW);
+                update_builtin_led();
                 publish_water_state(z->id, false);
                 LOG_INFO(&g_logger, TAG, "Zone %d watering stopped (elapsed=%lu, moisture=%.0f)",
                          z->id, elapsed, moisture);
@@ -188,6 +203,7 @@ static void manage_watering(unsigned long now_ms)
             g_watering[z->id] = true;
             g_water_start[z->id] = now_ms;
             digitalWrite(z->relay_pin, HIGH);
+            update_builtin_led();
             publish_water_state(z->id, true);
             LOG_INFO(&g_logger, TAG, "Zone %d watering started (moisture=%.0f, dry=%d)",
                      z->id, moisture, z->dry_threshold);
@@ -206,6 +222,7 @@ static void start_manual_water(uint8_t zone_id, uint16_t duration_sec)
     g_water_start[zone_id] = millis();
     // Override max_run with requested duration
     digitalWrite(z->relay_pin, HIGH);
+    update_builtin_led();
     publish_water_state(zone_id, true);
     LOG_INFO(&g_logger, TAG, "Manual water zone %d for %ds", zone_id, duration_sec);
 }
@@ -217,6 +234,7 @@ static void stop_manual_water(uint8_t zone_id)
 
     g_watering[zone_id] = false;
     digitalWrite(z->relay_pin, LOW);
+    update_builtin_led();
     publish_water_state(zone_id, false);
     LOG_INFO(&g_logger, TAG, "Manual water zone %d stopped", zone_id);
 }
@@ -263,6 +281,9 @@ void setup()
 
     memset(g_watering, 0, sizeof(g_watering));
     memset(g_water_start, 0, sizeof(g_water_start));
+
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);   // off (active HIGH)
 
     sensor_manager_init(&g_sensors);
     zone_manager_init();

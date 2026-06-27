@@ -52,6 +52,7 @@ export function ZoneFormDialog({
           <DialogTitle>{zone ? `Edit ${zone.name}` : "Add Plant Zone"}</DialogTitle>
         </DialogHeader>
         <ZoneForm
+          key={zone ? `${zone.deviceId}-${zone.zoneId}` : "create"}
           devices={devices}
           nextZoneId={nextZoneId}
           zone={zone}
