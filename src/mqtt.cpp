@@ -19,6 +19,7 @@ static MqttCallback  g_user_cb  = NULL;
 static bool          g_initial  = true;
 static unsigned long g_retry_ms = RETRY_MIN_MS;
 static unsigned long g_last_retry = 0;
+static char          g_cmd_topic[MQTT_TOPIC_MAX];
 
 static void on_mqtt_message(char* topic, byte* payload, unsigned int len)
 {
@@ -40,6 +41,10 @@ void mqtt_init(const MqttConfig* cfg)
     g_wifi_client.setInsecure();
     g_client.setServer(g_cfg.host, g_cfg.port);
     g_client.setCallback(on_mqtt_message);
+    g_client.setKeepAlive(60);
+
+    snprintf(g_cmd_topic, sizeof(g_cmd_topic),
+             "gardener/%s/zone/+/cmd/water", g_cfg.device_id);
 }
 
 int mqtt_connect(void)
@@ -61,15 +66,20 @@ int mqtt_connect(void)
         LOG_INFO(&g_logger, TAG, "Connected to broker");
         g_retry_ms = RETRY_MIN_MS;
 
+        // Announce on first boot only
         if (g_initial) {
             char topic[MQTT_TOPIC_MAX];
             mqtt_topic_announce(topic, sizeof(topic));
             mqtt_publish(topic, "{\"device\":\"" MQTT_DEVICE_ID "\",\"version\":\"1.0\"}", true);
-
-            mqtt_topic_cmd_water(topic, sizeof(topic), 0);
-            mqtt_subscribe(topic);
             g_initial = false;
         }
+
+        // Subscribe on every reconnect (clean session)
+        mqtt_subscribe(g_cmd_topic);
+
+        char cfg_topic[MQTT_TOPIC_MAX];
+        mqtt_topic_zone_config_wc(cfg_topic, sizeof(cfg_topic));
+        mqtt_subscribe(cfg_topic);
 
         return 0;
     }

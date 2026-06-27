@@ -122,9 +122,14 @@ SensorReading dht22_read_hum(void* config)
 
 // ── Soil Moisture ──────────────────────────────────────────────────────────
 
+#define SOIL_SAMPLES 16
+
 SensorReading soil_moisture_read(void* config)
 {
     SoilConfig* cfg = (SoilConfig*)config;
-    int raw = analogRead(cfg->pin);
-    return (SensorReading){(float)raw, true};
+    long sum = 0;
+    for (int i = 0; i < SOIL_SAMPLES; i++) {
+        sum += analogRead(cfg->pin);
+    }
+    return (SensorReading){(float)(sum / SOIL_SAMPLES), true};
 }

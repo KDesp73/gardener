@@ -298,14 +298,6 @@ void setup()
     mqtt_init(&mqtt);
     mqtt_set_callback(on_mqtt_message);
     mqtt_connect();
-
-    char topic[MQTT_TOPIC_MAX];
-    mqtt_topic_zone_config_wc(topic, sizeof(topic));
-    mqtt_subscribe(topic);
-
-    snprintf(topic, sizeof(topic), "gardener/%s/zone/+/cmd/water", MQTT_DEVICE_ID);
-    mqtt_subscribe(topic);
-
     // Clear stale retained water states after reboot
     for (int i = 0; i < zone_manager_count(); i++) {
         const ZoneConfig* z = &g_zone_mgr.zones[i];
