@@ -284,6 +284,15 @@ void setup()
 
     snprintf(topic, sizeof(topic), "gardener/%s/zone/+/cmd/water", MQTT_DEVICE_ID);
     mqtt_subscribe(topic);
+
+    // Clear stale retained water states after reboot
+    for (int i = 0; i < zone_manager_count(); i++) {
+        const ZoneConfig* z = &g_zone_mgr.zones[i];
+        if (z->relay_pin > 0) {
+            digitalWrite(z->relay_pin, LOW);
+        }
+        publish_water_state(z->id, false);
+    }
 }
 
 void loop()
