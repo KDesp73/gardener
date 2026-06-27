@@ -82,6 +82,13 @@ type Plant = {
   variety?: string;
   notes?: string;
   count?: number;
+  perenualId?: number;
+  scientificName?: string;
+  description?: string;
+  defaultImage?: string;
+  watering?: string;
+  sunlight?: string[];
+  careLevel?: string;
 };
 
 function parsePlants(json: string | null | undefined): Plant[] {
@@ -235,23 +242,68 @@ export function ZoneCard({
 
         {/* Plants */}
         {plants.length > 0 && (
-          <div className="space-y-1.5 rounded-lg bg-muted/30 p-3 text-sm">
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Plants</span>
               <span className="text-xs text-muted-foreground">{plants.length} type{plants.length > 1 ? "s" : ""}</span>
             </div>
-            <div className="space-y-1">
-              {plants.map((p, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <span>
-                    {p.species}
-                    {p.variety ? ` (${p.variety})` : ""}
-                    {p.notes ? ` — ${p.notes}` : ""}
-                  </span>
+            {plants.map((p, i) => (
+              <div key={i} className="space-y-1 border-b border-border/50 pb-2 last:border-b-0 last:pb-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium">{p.species}</span>
+                    {p.variety && <span className="text-muted-foreground"> ({p.variety})</span>}
+                    {p.scientificName && (
+                      <div className="text-[10px] italic text-muted-foreground">{p.scientificName}</div>
+                    )}
+                  </div>
                   <span className="text-xs text-muted-foreground">×{p.count ?? 1}</span>
                 </div>
-              ))}
-            </div>
+                {p.notes && (
+                  <div className="text-xs text-muted-foreground">{p.notes}</div>
+                )}
+                {/* Care badges */}
+                {(p.watering || p.sunlight || p.careLevel) && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {p.watering && (
+                      <span className="inline-flex items-center rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+                        💧 {p.watering}
+                      </span>
+                    )}
+                    {p.sunlight?.map((s) => (
+                      <span key={s} className="inline-flex items-center rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+                        ☀ {s}
+                      </span>
+                    ))}
+                    {p.careLevel && (
+                      <span className="inline-flex items-center rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+                        Care: {p.careLevel}
+                      </span>
+                    )}
+                    {p.perenualId && (
+                      <a
+                        href={`https://perenual.com/plant-species-database-search-finder/species/${p.perenualId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        Perenual ↗
+                      </a>
+                    )}
+                  </div>
+                )}
+                {p.description && (
+                  <details className="group mt-1">
+                    <summary className="cursor-pointer text-[10px] text-muted-foreground hover:text-foreground">
+                      Description
+                    </summary>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {p.description}
+                    </p>
+                  </details>
+                )}
+              </div>
+            ))}
           </div>
         )}
 

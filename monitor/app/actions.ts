@@ -264,3 +264,119 @@ export async function saveReading(
     args: [deviceId, zoneId, sensorType, value, unit],
   });
 }
+
+// ─── Perenual Plant API (DB-cached) ───────────────────────────
+
+type PerenualSpecies = {
+  id: number;
+  commonName: string;
+  scientificName: string;
+  image: string | null;
+  watering: string | null;
+  sunlight: string[] | null;
+};
+
+type PerenualDetails = {
+  id: number;
+  commonName: string;
+  scientificName: string;
+  description: string | null;
+  image: string | null;
+  watering: string | null;
+  sunlight: string[] | null;
+  careLevel: string | null;
+};
+
+const SEARCH_TTL_MS = 86_400_000;  // 24 hours
+const DETAILS_TTL_MS = 2_592_000_000;  // 30 days
+
+async function getCached<T>(cacheKey: string, ttlMs: number): Promise<T | null> {
+  try {
+    const db = getDb();
+    const result = await db.execute({
+      sql: "SELECT response, cached_at FROM plant_cache WHERE cache_key = ?",
+      args: [cacheKey],
+    });
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0] as unknown as { response: string; cached_at: string };
+    const age = Date.now() - new Date(row.cached_at + "Z").getTime();
+    if (age > ttlMs) return null;
+    return JSON.parse(row.response) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function setCache(cacheKey: string, data: unknown) {
+  try {
+    const db = getDb();
+    await db.execute({
+      sql: `INSERT INTO plant_cache (cache_key, response, cached_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT (cache_key) DO UPDATE SET
+            response = excluded.response, cached_at = excluded.cached_at`,
+      args: [cacheKey, JSON.stringify(data)],
+    });
+  } catch {
+    // non-fatal
+  }
+}
+
+export async function searchPlantSpecies(query: string): Promise<PerenualSpecies[]> {
+  if (query.length < 2) return [];
+  const cacheKey = `search:${query.toLowerCase().trim()}`;
+  const cached = await getCached<PerenualSpecies[]>(cacheKey, SEARCH_TTL_MS);
+  if (cached) return cached;
+
+  const key = process.env.PERENUAL_API_KEY;
+  if (!key) return [];
+  try {
+    const res = await fetch(
+      `https://perenual.com/api/v2/species-list?key=${key}&q=${encodeURIComponent(query)}&page=1`,
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const results: PerenualSpecies[] = (data.data || []).map((s: any) => ({
+      id: s.id,
+      commonName: s.common_name || s.scientific_name,
+      scientificName: s.scientific_name,
+      image: s.default_image?.small_url || s.default_image?.thumbnail || null,
+      watering: s.watering || null,
+      sunlight: Array.isArray(s.sunlight) ? s.sunlight : null,
+    }));
+    await setCache(cacheKey, results);
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+export async function getPlantDetails(speciesId: number): Promise<PerenualDetails | null> {
+  const cacheKey = `details:${speciesId}`;
+  const cached = await getCached<PerenualDetails>(cacheKey, DETAILS_TTL_MS);
+  if (cached) return cached;
+
+  const key = process.env.PERENUAL_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://perenual.com/api/v2/species/details/${speciesId}?key=${key}`,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const details: PerenualDetails = {
+      id: data.id,
+      commonName: data.common_name || data.scientific_name,
+      scientificName: data.scientific_name,
+      description: data.description || null,
+      image: data.default_image?.medium_url || data.default_image?.regular_url || null,
+      watering: data.watering || null,
+      sunlight: Array.isArray(data.sunlight) ? data.sunlight : null,
+      careLevel: data.care_level != null ? String(data.care_level) : null,
+    };
+    await setCache(cacheKey, details);
+    return details;
+  } catch {
+    return null;
+  }
+}

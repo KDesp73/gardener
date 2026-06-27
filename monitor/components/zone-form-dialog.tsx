@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,15 +19,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createZone } from "@/app/actions";
+import { createZone, searchPlantSpecies, getPlantDetails } from "@/app/actions";
 import { ImagePicker } from "@/components/image-picker";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Search, Loader2 } from "lucide-react";
+
+type PerenualSpecies = {
+  id: number;
+  commonName: string;
+  scientificName: string;
+  image: string | null;
+  watering: string | null;
+  sunlight: string[] | null;
+};
 
 type Plant = {
   species: string;
   variety: string;
   notes: string;
   count: number;
+  perenualId?: number;
+  scientificName?: string;
+  description?: string;
+  defaultImage?: string;
+  watering?: string;
+  sunlight?: string[];
+  careLevel?: string;
 };
 
 function parsePlants(json: string | null | undefined): Plant[] {
@@ -65,6 +81,119 @@ type ZoneData = {
   plants?: string | null;
 };
 
+function SpeciesSearch({
+  value,
+  onSelect,
+}: {
+  value: string;
+  onSelect: (species: string, data: Partial<Plant>) => void;
+}) {
+  const [results, setResults] = useState<PerenualSpecies[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState(value);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setInput(value);
+  }, [value]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleChange(val: string) {
+    setInput(val);
+    clearTimeout(timer.current);
+    if (val.length < 2) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    timer.current = setTimeout(async () => {
+      setSearching(true);
+      const res = await searchPlantSpecies(val);
+      setResults(res);
+      setOpen(res.length > 0);
+      setSearching(false);
+    }, 300);
+  }
+
+  async function handlePick(s: PerenualSpecies) {
+    setOpen(false);
+    setInput(s.commonName);
+    setSearching(true);
+    const details = await getPlantDetails(s.id);
+    setSearching(false);
+    onSelect(s.commonName, {
+      perenualId: s.id,
+      scientificName: s.scientificName,
+      defaultImage: details?.image || s.image || undefined,
+      watering: details?.watering || s.watering || undefined,
+      sunlight: details?.sunlight || s.sunlight || undefined,
+      description: details?.description || undefined,
+      careLevel: details?.careLevel || undefined,
+    });
+  }
+
+  return (
+    <div ref={containerRef} className="relative space-y-1">
+      <Label>Species</Label>
+      <div className="relative">
+        <Input
+          value={input}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="e.g. Tomato — search Perenual DB"
+          className="pr-8"
+        />
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
+          {searching ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : (
+            <Search className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </div>
+      {open && (
+        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-popover shadow-lg">
+          {results.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => handlePick(s)}
+              className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-accent"
+            >
+              {s.image ? (
+                <img
+                  src={s.image}
+                  alt=""
+                  className="h-8 w-8 flex-shrink-0 rounded object-cover"
+                />
+              ) : (
+                <div className="h-8 w-8 flex-shrink-0 rounded bg-muted" />
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-medium">{s.commonName}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {s.scientificName}
+                  {s.watering && ` · ${s.watering}`}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ZoneFormDialog({
   devices,
   nextZoneId,
@@ -89,7 +218,7 @@ export function ZoneFormDialog({
     setPlants([...plants, { species: "", variety: "", notes: "", count: 1 }]);
   }
 
-  function updatePlant(i: number, field: keyof Plant, value: string | number) {
+  function updatePlant(i: number, field: keyof Plant, value: string | number | undefined) {
     const next = [...plants];
     (next[i] as any)[field] = value;
     setPlants(next);
@@ -97,6 +226,12 @@ export function ZoneFormDialog({
 
   function removePlant(i: number) {
     setPlants(plants.filter((_, idx) => idx !== i));
+  }
+
+  function handleSpeciesSelect(i: number, species: string, data: Partial<Plant>) {
+    const next = [...plants];
+    next[i] = { ...next[i], species, ...data };
+    setPlants(next);
   }
 
   const [, action] = useActionState(
@@ -164,11 +299,11 @@ export function ZoneFormDialog({
           />
 
           <div className="space-y-2">
-            <Label htmlFor="name">Plant Name</Label>
+            <Label htmlFor="name">Zone Name</Label>
             <Input
               id="name"
               name="name"
-              placeholder="e.g. Basil"
+              placeholder="e.g. Herb Bed"
               defaultValue={zone?.name}
               required
             />
@@ -293,13 +428,22 @@ export function ZoneFormDialog({
                 >
                   <X className="h-3 w-3" />
                 </Button>
+
+                {p.defaultImage && (
+                  <div className="mb-3 overflow-hidden rounded border border-border">
+                    <img
+                      src={p.defaultImage}
+                      alt={p.species}
+                      className="h-24 w-full object-cover"
+                    />
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1 col-span-2 sm:col-span-1">
-                    <Label>Species</Label>
-                    <Input
+                  <div className="col-span-2">
+                    <SpeciesSearch
                       value={p.species}
-                      onChange={(e) => updatePlant(i, "species", e.target.value)}
-                      placeholder="e.g. Tomato"
+                      onSelect={(species, data) => handleSpeciesSelect(i, species, data)}
                     />
                   </div>
                   <div className="space-y-1 col-span-2 sm:col-span-1">
@@ -308,14 +452,6 @@ export function ZoneFormDialog({
                       value={p.variety}
                       onChange={(e) => updatePlant(i, "variety", e.target.value)}
                       placeholder="e.g. Cherry"
-                    />
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <Label>Notes</Label>
-                    <Input
-                      value={p.notes}
-                      onChange={(e) => updatePlant(i, "notes", e.target.value)}
-                      placeholder="e.g. Planted May 15"
                     />
                   </div>
                   <div className="space-y-1 col-span-2 sm:col-span-1">
@@ -327,7 +463,38 @@ export function ZoneFormDialog({
                       onChange={(e) => updatePlant(i, "count", parseInt(e.target.value) || 1)}
                     />
                   </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Notes</Label>
+                    <Input
+                      value={p.notes}
+                      onChange={(e) => updatePlant(i, "notes", e.target.value)}
+                      placeholder="e.g. Planted May 15"
+                    />
+                  </div>
                 </div>
+
+                {p.watering || p.sunlight ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {p.watering && (
+                      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize text-muted-foreground">
+                        Water: {p.watering}
+                      </span>
+                    )}
+                    {p.sunlight?.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize text-muted-foreground"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                    {p.careLevel && (
+                      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize text-muted-foreground">
+                        Care: {p.careLevel}
+                      </span>
+                    )}
+                  </div>
+                ) : null}
               </div>
             ))}
             {plants.length === 0 && (

@@ -97,4 +97,13 @@ async function initSchema() {
   } catch {
     // column already exists
   }
+
+  // plant cache for Perenual API responses
+  await db!.execute(`
+    CREATE TABLE IF NOT EXISTS plant_cache (
+      cache_key TEXT PRIMARY KEY,
+      response TEXT NOT NULL,
+      cached_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
