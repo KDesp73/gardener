@@ -34,6 +34,7 @@ type ZoneRow = {
   schedule_off: number;
   enabled: number;
   image?: string | null;
+  plants?: string | null;
 };
 
 type DeviceRow = {
@@ -252,6 +253,7 @@ export function DashboardClient({
             zoneId={z.zone_id}
             name={z.name}
             image={z.image}
+            plants={z.plants}
             sensorType={z.sensor_type || "capacitive"}
             soilPin={z.soil_pin}
             relayPin={z.relay_pin}

@@ -77,11 +77,29 @@ function timeAgo(ts: number): string {
   return `${Math.floor(min / 60)}h ago`;
 }
 
+type Plant = {
+  species: string;
+  variety?: string;
+  notes?: string;
+  count?: number;
+};
+
+function parsePlants(json: string | null | undefined): Plant[] {
+  if (!json) return [];
+  try {
+    const p = JSON.parse(json);
+    return Array.isArray(p) ? p : [];
+  } catch {
+    return [];
+  }
+}
+
 export function ZoneCard({
   deviceId,
   zoneId,
   name,
   image,
+  plants: plantsJson,
   sensorType,
   soilPin,
   relayPin,
@@ -100,6 +118,7 @@ export function ZoneCard({
   zoneId: number;
   name: string;
   image?: string | null;
+  plants?: string | null;
   sensorType: string;
   soilPin: number;
   relayPin: number;
@@ -114,6 +133,7 @@ export function ZoneCard({
   allDevices?: { id: string; name: string }[];
   readOnly?: boolean;
 }) {
+  const plants = parsePlants(plantsJson);
   const [showConfig, setShowConfig] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
@@ -174,6 +194,7 @@ export function ZoneCard({
                 scheduleOn,
                 scheduleOff,
                 image,
+                plants: plantsJson,
               }}
               trigger={<Button variant="ghost" size="sm" className="h-9 px-3">Edit</Button>}
             />
@@ -209,6 +230,28 @@ export function ZoneCard({
               alt={name}
               className="h-40 w-full object-cover"
             />
+          </div>
+        )}
+
+        {/* Plants */}
+        {plants.length > 0 && (
+          <div className="space-y-1.5 rounded-lg bg-muted/30 p-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Plants</span>
+              <span className="text-xs text-muted-foreground">{plants.length} type{plants.length > 1 ? "s" : ""}</span>
+            </div>
+            <div className="space-y-1">
+              {plants.map((p, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <span>
+                    {p.species}
+                    {p.variety ? ` (${p.variety})` : ""}
+                    {p.notes ? ` — ${p.notes}` : ""}
+                  </span>
+                  <span className="text-xs text-muted-foreground">×{p.count ?? 1}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

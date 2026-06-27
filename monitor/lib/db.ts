@@ -88,4 +88,13 @@ async function initSchema() {
   } catch {
     // column already exists
   }
+
+  // migration: add plants column to zones if missing
+  try {
+    await db!.execute(
+      "ALTER TABLE zones ADD COLUMN plants TEXT DEFAULT '[]'",
+    );
+  } catch {
+    // column already exists
+  }
 }

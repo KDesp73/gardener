@@ -28,6 +28,7 @@ export interface ZoneRow {
   sensor_type: string;
   enabled: number;
   image: string | null;
+  plants: string;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +56,7 @@ const zoneSchema = z.object({
   scheduleOff: z.coerce.number().int().default(480),
   sensorType: z.enum(["capacitive", "resistive"]).default("capacitive"),
   image: z.string().optional(),
+  plants: z.string().optional(),
 });
 
 export type ZoneFormData = z.infer<typeof zoneSchema>;
@@ -123,8 +125,8 @@ export async function createZone(data: ZoneFormData) {
 
   await db.execute({
     sql: `INSERT INTO zones (device_id, zone_id, name, soil_pin, relay_pin,
-          dry_threshold, wet_threshold, max_run_sec, schedule_on, schedule_off, sensor_type, image)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          dry_threshold, wet_threshold, max_run_sec, schedule_on, schedule_off, sensor_type, image, plants)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (device_id, zone_id) DO UPDATE SET
           name = excluded.name, soil_pin = excluded.soil_pin,
           relay_pin = excluded.relay_pin,
@@ -135,6 +137,7 @@ export async function createZone(data: ZoneFormData) {
           schedule_off = excluded.schedule_off,
           sensor_type = excluded.sensor_type,
           image = excluded.image,
+          plants = excluded.plants,
           updated_at = datetime('now')`,
     args: [
       data.deviceId,
@@ -149,6 +152,7 @@ export async function createZone(data: ZoneFormData) {
       data.scheduleOff,
       data.sensorType,
       data.image || null,
+      data.plants || '[]',
     ],
   });
 

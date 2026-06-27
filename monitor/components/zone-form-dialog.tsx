@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,24 @@ import {
 } from "@/components/ui/select";
 import { createZone } from "@/app/actions";
 import { ImagePicker } from "@/components/image-picker";
+import { Plus, X } from "lucide-react";
+
+type Plant = {
+  species: string;
+  variety: string;
+  notes: string;
+  count: number;
+};
+
+function parsePlants(json: string | null | undefined): Plant[] {
+  if (!json) return [];
+  try {
+    const p = JSON.parse(json);
+    return Array.isArray(p) ? p : [];
+  } catch {
+    return [];
+  }
+}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -44,6 +62,7 @@ type ZoneData = {
   scheduleOn: number;
   scheduleOff: number;
   image?: string | null;
+  plants?: string | null;
 };
 
 export function ZoneFormDialog({
@@ -59,8 +78,26 @@ export function ZoneFormDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [image, setImage] = useState<string | null>(zone?.image ?? null);
-
+  const [plants, setPlants] = useState<Plant[]>(() => parsePlants(zone?.plants));
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPlants(parsePlants(zone?.plants));
+  }, [zone?.plants]);
+
+  function addPlant() {
+    setPlants([...plants, { species: "", variety: "", notes: "", count: 1 }]);
+  }
+
+  function updatePlant(i: number, field: keyof Plant, value: string | number) {
+    const next = [...plants];
+    (next[i] as any)[field] = value;
+    setPlants(next);
+  }
+
+  function removePlant(i: number) {
+    setPlants(plants.filter((_, idx) => idx !== i));
+  }
 
   const [, action] = useActionState(
     async (_prev: unknown, formData: FormData) => {
@@ -79,6 +116,7 @@ export function ZoneFormDialog({
           scheduleOn: parseInt(formData.get("scheduleOn") as string) || 420,
           scheduleOff: parseInt(formData.get("scheduleOff") as string) || 480,
           image: (formData.get("image") as string) || undefined,
+          plants: (formData.get("plants") as string) || undefined,
         });
         setOpen(false);
       } catch (e) {
@@ -231,6 +269,75 @@ export function ZoneFormDialog({
 
           <input type="hidden" name="image" value={image ?? ""} />
           <ImagePicker value={image} onChange={setImage} />
+
+          {/* Plants */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Plants in this spot</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addPlant}>
+                <Plus className="mr-1 h-3 w-3" /> Add plant
+              </Button>
+            </div>
+            {plants.map((p, i) => (
+              <div
+                key={i}
+                className="relative rounded-lg border border-border p-3 pt-7"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removePlant(i)}
+                  className="absolute right-1 top-1 h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Remove plant"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1 col-span-2 sm:col-span-1">
+                    <Label>Species</Label>
+                    <Input
+                      value={p.species}
+                      onChange={(e) => updatePlant(i, "species", e.target.value)}
+                      placeholder="e.g. Tomato"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2 sm:col-span-1">
+                    <Label>Variety</Label>
+                    <Input
+                      value={p.variety}
+                      onChange={(e) => updatePlant(i, "variety", e.target.value)}
+                      placeholder="e.g. Cherry"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Notes</Label>
+                    <Input
+                      value={p.notes}
+                      onChange={(e) => updatePlant(i, "notes", e.target.value)}
+                      placeholder="e.g. Planted May 15"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2 sm:col-span-1">
+                    <Label>Count</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={p.count}
+                      onChange={(e) => updatePlant(i, "count", parseInt(e.target.value) || 1)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {plants.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No plants added yet.
+              </p>
+            )}
+          </div>
+
+          <input type="hidden" name="plants" value={JSON.stringify(plants)} />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <SubmitButton />

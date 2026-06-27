@@ -179,6 +179,10 @@ class Database:
             """)
         except Exception:
             pass
+        try:
+            self.execute("ALTER TABLE zones ADD COLUMN plants TEXT DEFAULT '[]'")
+        except Exception:
+            pass
 
     # ── Data helpers ────────────────────────────────────────────────────
 
