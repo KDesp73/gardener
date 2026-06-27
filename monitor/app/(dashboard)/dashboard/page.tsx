@@ -1,13 +1,10 @@
-import { getZones, getDevices } from "@/app/actions";
+import { getAllZones, getDevices } from "@/app/actions";
 import { DashboardClient } from "@/components/dashboard-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const devices = await getDevices();
-  const deviceId =
-    devices.length > 0 ? (devices[0] as unknown as { id: string }).id : "";
-  const zones = deviceId ? await getZones(deviceId) : [];
+  const [devices, zones] = await Promise.all([getDevices(), getAllZones()]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
