@@ -74,7 +74,7 @@ export function ZoneFormDialog({
         maxRunSec: parseInt(formData.get("maxRunSec") as string) || 60,
         scheduleOn: parseInt(formData.get("scheduleOn") as string) || 420,
         scheduleOff: parseInt(formData.get("scheduleOff") as string) || 480,
-        image: image ?? undefined,
+        image: (formData.get("image") as string) || undefined,
       });
       setOpen(false);
     },
@@ -222,6 +222,7 @@ export function ZoneFormDialog({
             />
           </div>
 
+          <input type="hidden" name="image" value={image ?? ""} />
           <ImagePicker value={image} onChange={setImage} />
 
           <SubmitButton />
