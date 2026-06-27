@@ -209,7 +209,7 @@ export async function getReadings(
           ORDER BY created_at DESC LIMIT ?`,
     args: [deviceId, zoneId, sensorType, limit],
   });
-  return result.rows.reverse();
+  return serialize<{ value: number; created_at: string }>(result.rows).reverse();
 }
 
 export async function toggleZone(deviceId: string, zoneId: number, enabled: boolean) {
